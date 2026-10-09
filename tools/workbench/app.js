@@ -73,6 +73,7 @@ const dictionary = {
   pro1Description: ["Plumber · available today", "水管工 · 今天有空"],
   pro2Description: ["Plumber · available tomorrow", "水管工 · 明天有空"],
   customerThread: ["Your conversation with the platform", "你与平台客服的对话"],
+  proThread: ["Private conversation about the repair", "关于维修的私聊"],
   supportThread: [
     "Help Alex with their service request",
     "协助 Alex 处理维修需求",
@@ -128,10 +129,20 @@ const loadDraft = () => {
     : "";
 };
 // Outbox of unconfirmed sends, per identity, survives refresh.
-const outboxKey = () => `nearby-outbox:${actor}`;
-const outbox = () => JSON.parse(localStorage.getItem(outboxKey()) || "[]");
-const setOutbox = (items) =>
-  localStorage.setItem(outboxKey(), JSON.stringify(items));
+const outboxKey = (who = actor) => `nearby-outbox:${who}`;
+const outbox = (who = actor) =>
+  JSON.parse(localStorage.getItem(outboxKey(who)) || "[]");
+const setOutbox = (items, who = actor) =>
+  localStorage.setItem(outboxKey(who), JSON.stringify(items));
+// 2. A send cut off by a page refresh can never confirm itself: offer Retry.
+for (const key of Object.keys(localStorage))
+  if (key.startsWith("nearby-outbox:"))
+    localStorage.setItem(
+      key,
+      JSON.stringify(
+        JSON.parse(localStorage.getItem(key)).map((o) => ({ ...o, status: "failed" })),
+      ),
+    );
 const t = (key) => dictionary[key]?.[language === "zh-CN" ? 1 : 0] || key;
 const name = (p) => (p?.id === "support" ? t("support") : p?.name || "");
 const description = (p) =>
@@ -230,7 +241,13 @@ function renderState() {
           : ` <button class="quiet" data-invite="${esc(selected.id)}">${esc(t("invite"))}</button>`)
       : "";
   $("chat-subtitle").textContent = selected
-    ? t(actor === "support" ? "supportThread" : "customerThread")
+    ? t(
+        actor === "support"
+          ? "supportThread"
+          : selected.id === "support-thread"
+            ? "customerThread"
+            : "proThread",
+      )
     : t("noConversationBody");
   $("composer").hidden = !selected;
   if (!selected)
@@ -615,16 +632,22 @@ async function deliver(item) {
       },
       sender,
     );
-    if (actor === sender)
-      setOutbox(outbox().filter((o) => o.clientMessageId !== item.clientMessageId));
+    setOutbox(
+      outbox(sender).filter((o) => o.clientMessageId !== item.clientMessageId),
+      sender,
+    );
   } catch (error) {
-    if (actor === sender && error.status >= 400 && error.status < 500)
-      setOutbox(outbox().filter((o) => o.clientMessageId !== item.clientMessageId));
-    else if (actor === sender)
+    if (error.status >= 400 && error.status < 500)
       setOutbox(
-        outbox().map((o) =>
+        outbox(sender).filter((o) => o.clientMessageId !== item.clientMessageId),
+        sender,
+      );
+    else
+      setOutbox(
+        outbox(sender).map((o) =>
           o.clientMessageId === item.clientMessageId ? { ...o, status: "failed" } : o,
         ),
+        sender,
       );
     throw error;
   }
@@ -649,6 +672,8 @@ $("cancel-reset").onclick = () => $("reset-dialog").close();
 $("confirm-reset").onclick = async () => {
   try {
     await api("/api/dev/reset", {});
+    for (const key of Object.keys(localStorage))
+      if (/^nearby-(draft|outbox|last):/.test(key)) localStorage.removeItem(key);
     $("reset-dialog").close();
     switchActor("customer");
   } catch (e) {
