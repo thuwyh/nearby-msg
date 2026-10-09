@@ -98,6 +98,10 @@
             </div>
             <span id="connection" class="connection" role="status"></span>
           </div>
+          <div id="chat-tools" class="chat-tools" hidden>
+            <input id="search" type="search" placeholder="Search this conversation" aria-label="Search" />
+            <span id="chat-actions"></span>
+          </div>
           <div
             id="message-list"
             class="message-list"
@@ -106,6 +110,8 @@
             aria-label="Messages"
           ></div>
           <form id="composer">
+            <div id="reply-preview" class="reply-preview" hidden></div>
+            <div id="image-preview" class="reply-preview" hidden></div>
             <label class="sr-only" for="message-input" data-t="write"
               >Write a message</label
             ><textarea
@@ -113,8 +119,8 @@
               rows="2"
               maxlength="4000"
               placeholder="Write a message…"
-              required
             ></textarea>
+            <input id="image-input" type="file" accept="image/png,image/jpeg,image/webp" />
             <div class="compose-actions">
               <span data-t="textOnly"
                 >Text messages · Enter to send · Shift + Enter for a new
@@ -152,6 +158,10 @@
         </details>
         <button id="reset" class="quiet" data-t="reset">Reset demo</button>
       </footer>
+      <dialog id="image-dialog" class="image-dialog">
+        <img id="image-large" alt="" />
+        <form method="dialog"><button>Close</button></form>
+      </dialog>
       <dialog id="reset-dialog">
         <h2 data-t="resetTitle">Start a fresh demo?</h2>
         <p data-t="resetDescription">

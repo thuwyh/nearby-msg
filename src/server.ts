@@ -82,7 +82,9 @@ const server = createServer(async (req, res) => {
       /^\/api\/conversations\/([^/]+)\/messages$/,
     );
     if (messages && req.method === "GET") {
-      reply(200, { messages: chat.messages(actor, messages[1]) });
+      reply(200, {
+        messages: chat.messages(actor, messages[1], url.searchParams.get("q")),
+      });
       return;
     }
     if (messages && req.method === "POST") {
@@ -105,6 +107,21 @@ const server = createServer(async (req, res) => {
     }
     if (req.method === "POST" && url.pathname === "/api/conversations") {
       reply(200, { conversation: chat.start(actor, body) });
+      return;
+    }
+    const read = url.pathname.match(/^\/api\/conversations\/([^/]+)\/read$/);
+    if (read && req.method === "POST") {
+      reply(200, chat.markRead(actor, read[1], body));
+      return;
+    }
+    const escalate = url.pathname.match(/^\/api\/conversations\/([^/]+)\/escalate$/);
+    if (escalate && req.method === "POST") {
+      reply(200, { conversation: chat.escalate(actor, escalate[1]) });
+      return;
+    }
+    const block = url.pathname.match(/^\/api\/people\/([^/]+)\/block$/);
+    if (block && req.method === "POST") {
+      reply(200, chat.block(actor, block[1], body));
       return;
     }
     const recall = url.pathname.match(/^\/api\/messages\/([^/]+)\/recall$/);

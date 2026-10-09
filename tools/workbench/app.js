@@ -81,6 +81,16 @@ const dictionary = {
   open: ["Open conversation", "打开对话"],
   sending: ["Sending…", "发送中…"],
   applied: ["Applied to the next send.", "已应用到下一次发送。"],
+  reply: ["Reply", "回复"],
+  replyingTo: ["Replying to", "回复"],
+  image: ["Photo", "图片"],
+  block: ["Block", "屏蔽"],
+  unblock: ["Unblock", "解除屏蔽"],
+  invite: ["Invite Nearby Support", "邀请客服介入"],
+  supportJoined: ["Nearby Support joined", "客服已加入"],
+  noResults: ["No matching messages", "没有匹配的消息"],
+  badImage: ["Choose a PNG, JPEG or WebP image.", "请选择 PNG、JPEG 或 WebP 图片。"],
+  bigImage: ["Images must be 2 MiB or smaller.", "图片不能超过 2 MiB。"],
   messageBtn: ["Message", "发消息"],
   recall: ["Recall", "撤回"],
   recalled: ["Message recalled", "消息已撤回"],
@@ -100,7 +110,11 @@ let actor = "customer",
   revision = 0,
   busy = false,
   polling = false,
-  lastMessages = "";
+  lastMessages = "",
+  replyTo = null,
+  image = null,
+  searchQuery = "",
+  lastRead = "";
 const draftKey = (c = conversationId) => `nearby-draft:${actor}:${c}`;
 const saveDraft = () => {
   if (!conversationId) return;
@@ -146,7 +160,10 @@ async function api(path, body, identity = actor) {
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
   const data = await response.json();
-  if (!response.ok) throw new Error(data.error || "Request failed");
+  if (!response.ok)
+    throw Object.assign(new Error(data.error || "Request failed"), {
+      status: response.status,
+    });
   return data;
 }
 function localize() {
@@ -155,6 +172,7 @@ function localize() {
     el.textContent = t(el.dataset.t);
   });
   $("language").textContent = language === "en" ? "中文" : "EN";
+  $("search").placeholder = language === "en" ? "Search this conversation" : "搜索本对话";
   $("message-input").placeholder =
     language === "en" ? "Write a message…" : "输入消息…";
   if (state) renderState();
@@ -176,10 +194,13 @@ function renderState() {
   $("conversation-list").innerHTML = state.conversations.length
     ? state.conversations
         .map((c) => {
-          const other = state.people.find(
+          const others = state.people.filter(
             (p) => c.participantIds.includes(p.id) && p.id !== actor,
           );
-          return `<button class="conversation ${c.id === conversationId ? "selected" : ""}" data-conversation="${esc(c.id)}" aria-pressed="${c.id === conversationId}"><span class="avatar">${esc(initials(other))}</span><span><strong>${esc(name(other))}</strong><small>${esc(t("open"))}</small></span></button>`;
+          const badge = c.unreadCount
+            ? `<span class="badge" aria-label="unread">${c.unreadCount}</span>`
+            : "";
+          return `<button class="conversation ${c.id === conversationId ? "selected" : ""}" data-conversation="${esc(c.id)}" aria-pressed="${c.id === conversationId}"><span class="avatar">${esc(initials(others[0]))}</span><span><strong>${esc(others.map(name).join(" · "))}</strong><small>${esc(t("open"))}</small></span>${badge}</button>`;
         })
         .join("")
     : `<p class="empty">${esc(t("emptyList"))}</p>`;
@@ -191,12 +212,23 @@ function renderState() {
     )
     .join("");
   const selected = state.conversations.find((c) => c.id === conversationId);
-  const other =
-    selected &&
-    state.people.find(
-      (p) => selected.participantIds.includes(p.id) && p.id !== actor,
-    );
-  $("chat-title").textContent = other ? name(other) : t("noConversation");
+  const others = selected
+    ? state.people.filter(
+        (p) => selected.participantIds.includes(p.id) && p.id !== actor,
+      )
+    : [];
+  $("chat-title").textContent = others.length
+    ? others.map(name).join(" · ")
+    : t("noConversation");
+  $("chat-tools").hidden = !selected;
+  const pro = others.find((p) => p.role === "professional");
+  $("chat-actions").innerHTML =
+    me.role === "customer" && pro
+      ? `<button class="quiet" data-block="${esc(pro.id)}" data-value="${!state.blocked.includes(pro.id)}">${esc(t(state.blocked.includes(pro.id) ? "unblock" : "block"))}</button>` +
+        (selected.participantIds.includes("support")
+          ? ` <span class="muted">${esc(t("supportJoined"))}</span>`
+          : ` <button class="quiet" data-invite="${esc(selected.id)}">${esc(t("invite"))}</button>`)
+      : "";
   $("chat-subtitle").textContent = selected
     ? t(actor === "support" ? "supportThread" : "customerThread")
     : t("noConversationBody");
@@ -204,6 +236,51 @@ function renderState() {
   if (!selected)
     $("message-list").innerHTML =
       `<div class="empty"><div class="empty-symbol" aria-hidden="true">…</div><strong>${esc(t("noConversation"))}</strong>${esc(t("noConversationBody"))}</div>`;
+}
+const imageHtml = (img) =>
+  img
+    ? `<img class="thumb" src="${esc(img.dataUrl)}" alt="${esc(img.name)}" data-large />`
+    : "";
+const quote = (q) =>
+  q
+    ? `<blockquote class="quote">${q.recalled ? `<em>${esc(t("recalled"))}</em>` : esc(q.text || (q.image ? t("image") : ""))}</blockquote>`
+    : "";
+function renderReply() {
+  $("reply-preview").hidden = !replyTo;
+  $("reply-preview").innerHTML = replyTo
+    ? `${esc(t("replyingTo"))}: ${esc(replyTo.text || t("image"))} <button type="button" class="link" id="cancel-reply">${esc(t("cancel"))}</button>`
+    : "";
+  $("image-preview").hidden = !image;
+  $("image-preview").innerHTML = image
+    ? `${esc(image.name)} <button type="button" class="link" id="cancel-image">${esc(t("cancel"))}</button>`
+    : "";
+}
+function renderResults(messages) {
+  const signature = "search" + JSON.stringify(messages) + language;
+  if (signature === lastMessages) return;
+  lastMessages = signature;
+  $("message-list").innerHTML = messages.length
+    ? messages
+        .map(
+          (m) =>
+            `<button class="result" data-jump="${esc(m.id)}">${esc(m.text)}<small>${esc(name(state.people.find((p) => p.id === m.senderId)))}</small></button>`,
+        )
+        .join("")
+    : `<p class="empty">${esc(t("noResults"))}</p>`;
+}
+// T4: mark as read only what is on screen (scrolled to the bottom).
+function markRead(messages) {
+  const list = $("message-list");
+  const last = messages.at(-1);
+  if (!last || document.hidden) return;
+  if (list.scrollHeight - list.scrollTop - list.clientHeight > 80) return;
+  const key = actor + conversationId + last.id;
+  const c = state.conversations.find((x) => x.id === conversationId);
+  if (key === lastRead && !c?.unreadCount) return;
+  lastRead = key;
+  api(`/api/conversations/${encodeURIComponent(conversationId)}/read`, {
+    throughMessageId: last.id,
+  }).catch(() => {});
 }
 function renderMessages(messages) {
   const confirmed = new Set(messages.map((m) => m.clientMessageId));
@@ -225,18 +302,20 @@ function renderMessages(messages) {
           const mine = m.senderId === actor;
           const body = m.recalled
             ? `<em>${esc(t("recalled"))}</em>`
-            : esc(m.text);
-          const action =
-            mine && !m.recalled
-              ? ` · <button class="link" data-recall="${esc(m.id)}">${esc(t("recall"))}</button>`
-              : "";
+            : quote(m.replyTo) + imageHtml(m.image) + esc(m.text);
+          const action = m.recalled
+            ? ""
+            : ` · <button class="link" data-reply="${esc(m.id)}">${esc(t("reply"))}</button>` +
+              (mine
+                ? ` · <button class="link" data-recall="${esc(m.id)}">${esc(t("recall"))}</button>`
+                : "");
           return `<article class="message ${mine ? "mine" : ""}" data-id="${esc(m.id)}"><div class="bubble">${body}</div><div class="meta">${esc(name(sender))} · ${esc(new Date(m.createdAt).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" }))}${action}</div></article>`;
         })
         .join("") +
       pending
         .map(
           (o) =>
-            `<article class="message mine"><div class="bubble">${esc(o.text)}</div><div class="meta error">${esc(t(o.status))}${o.status === "failed" ? ` · <button class="link" data-retry="${esc(o.clientMessageId)}">${esc(t("retry"))}</button>` : ""}</div></article>`,
+            `<article class="message mine"><div class="bubble">${imageHtml(o.image)}${esc(o.text)}</div><div class="meta error">${esc(t(o.status))}${o.status === "failed" ? ` · <button class="link" data-retry="${esc(o.clientMessageId)}">${esc(t("retry"))}</button>` : ""}</div></article>`,
         )
         .join("")
     : `<div class="empty"><div class="empty-symbol" aria-hidden="true">…</div><strong>${esc(t("emptyTitle"))}</strong>${esc(t("emptyBody"))}</div>`;
@@ -255,20 +334,30 @@ async function refresh() {
     const changed = JSON.stringify(state) !== JSON.stringify(next);
     state = next;
     if (!state.conversations.some((c) => c.id === conversationId)) {
-      conversationId = state.conversations[0]?.id || null;
+      const last = localStorage.getItem(`nearby-last:${actor}`);
+      conversationId =
+        (state.conversations.some((c) => c.id === last) && last) ||
+        state.conversations[0]?.id ||
+        null;
       lastMessages = "";
       loadDraft();
     }
     if (changed) renderState();
     if (conversationId) {
       const selected = conversationId;
+      const q = searchQuery;
       const result = await api(
-        `/api/conversations/${encodeURIComponent(selected)}/messages`,
+        `/api/conversations/${encodeURIComponent(selected)}/messages` +
+          (q ? `?q=${encodeURIComponent(q)}` : ""),
         undefined,
         identity,
       );
-      if (version !== revision || selected !== conversationId) return;
-      renderMessages(result.messages);
+      if (version !== revision || selected !== conversationId || q !== searchQuery) return;
+      if (q) renderResults(result.messages);
+      else {
+        renderMessages(result.messages);
+        markRead(result.messages);
+      }
     }
     $("connection").textContent = t("connected");
   } catch {
@@ -278,6 +367,7 @@ async function refresh() {
   }
 }
 function switchActor(id) {
+  clearComposeExtras();
   actor = id;
   revision++;
   state = null;
@@ -309,8 +399,18 @@ $("conversation-list").onclick = (e) => {
   if (!button) return;
   selectConversation(button.dataset.conversation);
 };
+function clearComposeExtras() {
+  replyTo = null;
+  image = null;
+  searchQuery = "";
+  $("search").value = "";
+  $("image-input").value = "";
+  renderReply();
+}
 function selectConversation(id) {
+  clearComposeExtras();
   conversationId = id;
+  localStorage.setItem(`nearby-last:${actor}`, id);
   revision++;
   lastMessages = "";
   loadDraft();
@@ -334,6 +434,38 @@ $("people-list").onclick = async (e) => {
 $("message-list").onclick = async (e) => {
   const recall = e.target.closest("[data-recall]");
   const retry = e.target.closest("[data-retry]");
+  const large = e.target.closest("[data-large]");
+  if (large) {
+    $("image-large").src = large.src;
+    $("image-dialog").showModal();
+    return;
+  }
+  const reply = e.target.closest("[data-reply]");
+  if (reply) {
+    const article = reply.closest("article");
+    replyTo = {
+      id: reply.dataset.reply,
+      text: article.querySelector(".bubble").innerText,
+    };
+    renderReply();
+    $("message-input").focus();
+    return;
+  }
+  const jump = e.target.closest("[data-jump]");
+  if (jump) {
+    searchQuery = "";
+    $("search").value = "";
+    lastMessages = "";
+    revision++;
+    await refresh();
+    const target = $("message-list").querySelector(
+      `[data-id="${CSS.escape(jump.dataset.jump)}"]`,
+    );
+    target?.scrollIntoView({ block: "center" });
+    target?.classList.add("highlight");
+    setTimeout(() => target?.classList.remove("highlight"), 2000);
+    return;
+  }
   try {
     if (recall)
       await api(`/api/messages/${encodeURIComponent(recall.dataset.recall)}/recall`, {});
@@ -353,6 +485,68 @@ $("message-list").onclick = async (e) => {
   }
   refresh();
 };
+$("reply-preview").onclick = (e) => {
+  if (e.target.id === "cancel-reply") {
+    replyTo = null;
+    renderReply();
+  }
+};
+$("image-preview").onclick = (e) => {
+  if (e.target.id === "cancel-image") {
+    image = null;
+    $("image-input").value = "";
+    renderReply();
+  }
+};
+$("image-input").onchange = () => {
+  const file = $("image-input").files[0];
+  $("send-error").hidden = true;
+  if (!file) return;
+  const fail = (key) => {
+    $("send-error").textContent = t(key);
+    $("send-error").hidden = false;
+    $("image-input").value = "";
+    image = null;
+    renderReply();
+  };
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type))
+    return fail("badImage");
+  if (file.size > 2 * 1024 * 1024) return fail("bigImage");
+  const reader = new FileReader();
+  reader.onload = () => {
+    image = { name: file.name, dataUrl: reader.result };
+    renderReply();
+  };
+  reader.readAsDataURL(file);
+};
+let searchTimer;
+$("search").oninput = () => {
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(() => {
+    searchQuery = $("search").value.trim();
+    lastMessages = "";
+    revision++;
+    refresh();
+  }, 250);
+};
+$("chat-actions").onclick = async (e) => {
+  const block = e.target.closest("[data-block]");
+  const invite = e.target.closest("[data-invite]");
+  try {
+    if (block)
+      await api(`/api/people/${encodeURIComponent(block.dataset.block)}/block`, {
+        blocked: block.dataset.value === "true",
+      });
+    if (invite)
+      await api(
+        `/api/conversations/${encodeURIComponent(invite.dataset.invite)}/escalate`,
+        {},
+      );
+  } catch (error) {
+    $("connection").textContent = error.message;
+  }
+  refresh();
+};
 $("language").onclick = () => {
   language = language === "en" ? "zh-CN" : "en";
   localStorage.setItem("nearby-chat-language", language);
@@ -360,7 +554,8 @@ $("language").onclick = () => {
 };
 $("composer").onsubmit = async (e) => {
   e.preventDefault();
-  if (busy || !conversationId || !$("message-input").value.trim()) return;
+  if (busy || !conversationId || (!$("message-input").value.trim() && !image))
+    return;
   busy = true;
   const version = revision,
     text = $("message-input").value;
@@ -372,6 +567,8 @@ $("composer").onsubmit = async (e) => {
     conversationId,
     text,
     status: "pending",
+    ...(image ? { image } : {}),
+    ...(replyTo ? { replyToId: replyTo.id } : {}),
   };
   setOutbox([...outbox(), item]);
   try {
@@ -380,9 +577,18 @@ $("composer").onsubmit = async (e) => {
       localStorage.removeItem(draftKey(item.conversationId));
     if (version === revision && $("message-input").value === text)
       $("message-input").value = "";
+    if (version === revision) {
+      replyTo = null;
+      image = null;
+      $("image-input").value = "";
+      renderReply();
+    }
   } catch (error) {
     if (version === revision) {
-      $("send-error").textContent = t("sendFailure") + " " + error.message;
+      $("send-error").textContent =
+        error.status >= 400 && error.status < 500
+          ? error.message
+          : t("sendFailure") + " " + error.message;
       $("send-error").hidden = false;
     }
   } finally {
@@ -401,13 +607,20 @@ async function deliver(item) {
   try {
     await api(
       `/api/conversations/${encodeURIComponent(item.conversationId)}/messages`,
-      { text: item.text, clientMessageId: item.clientMessageId },
+      {
+        text: item.text,
+        clientMessageId: item.clientMessageId,
+        image: item.image,
+        replyToId: item.replyToId,
+      },
       sender,
     );
     if (actor === sender)
       setOutbox(outbox().filter((o) => o.clientMessageId !== item.clientMessageId));
   } catch (error) {
-    if (actor === sender)
+    if (actor === sender && error.status >= 400 && error.status < 500)
+      setOutbox(outbox().filter((o) => o.clientMessageId !== item.clientMessageId));
+    else if (actor === sender)
       setOutbox(
         outbox().map((o) =>
           o.clientMessageId === item.clientMessageId ? { ...o, status: "failed" } : o,

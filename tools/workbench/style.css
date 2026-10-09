@@ -566,3 +566,13 @@ body:has(#guide:not([open])) .message-list {
 button.link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
 .person button { margin-left: auto; }
 .meta.error { color: #b42318; }
+.badge { margin-left: auto; background: #b42318; color: #fff; border-radius: 999px; padding: 0 7px; font-size: 12px; line-height: 20px; }
+.chat-tools { display: flex; gap: 8px; align-items: center; padding: 8px 16px; flex-wrap: wrap; }
+.chat-tools input { flex: 1; min-width: 160px; padding: 6px 8px; }
+.reply-preview { font-size: 13px; padding: 6px 8px; border-left: 3px solid #145e54; background: #f2f6f5; margin-bottom: 6px; }
+.quote { margin: 0 0 6px; padding: 4px 8px; border-left: 3px solid #9bb; font-size: 13px; opacity: .8; }
+.thumb { display: block; max-width: 220px; max-height: 180px; border-radius: 8px; cursor: zoom-in; margin-bottom: 4px; }
+.image-dialog img { max-width: 90vw; max-height: 80vh; display: block; }
+.result { display: block; width: 100%; text-align: left; padding: 8px; margin-bottom: 6px; cursor: pointer; }
+.result small { display: block; opacity: .6; }
+.message.highlight .bubble { outline: 3px solid #f5b400; }
