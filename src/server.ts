@@ -82,7 +82,9 @@ const server = createServer(async (req, res) => {
       /^\/api\/conversations\/([^/]+)\/messages$/,
     );
     if (messages && req.method === "GET") {
-      reply(200, { messages: chat.messages(actor, messages[1]) });
+      reply(200, {
+        messages: chat.messages(actor, messages[1], url.searchParams.get("q")),
+      });
       return;
     }
     if (messages && req.method === "POST") {
@@ -94,13 +96,37 @@ const server = createServer(async (req, res) => {
           503,
           "Connection failed before the message was saved.",
         );
-      const message = chat.send(actor, messages[1], body);
+      const { message, created } = chat.send(actor, messages[1], body);
       if (fault === "after-save")
         throw new HttpError(
           503,
           "Connection lost. The server saved the message, but the sender did not receive confirmation.",
         );
-      reply(201, { message });
+      reply(created ? 201 : 200, { message });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/conversations") {
+      reply(200, { conversation: chat.start(actor, body) });
+      return;
+    }
+    const read = url.pathname.match(/^\/api\/conversations\/([^/]+)\/read$/);
+    if (read && req.method === "POST") {
+      reply(200, chat.markRead(actor, read[1], body));
+      return;
+    }
+    const escalate = url.pathname.match(/^\/api\/conversations\/([^/]+)\/escalate$/);
+    if (escalate && req.method === "POST") {
+      reply(200, { conversation: chat.escalate(actor, escalate[1]) });
+      return;
+    }
+    const block = url.pathname.match(/^\/api\/people\/([^/]+)\/block$/);
+    if (block && req.method === "POST") {
+      reply(200, chat.block(actor, block[1], body));
+      return;
+    }
+    const recall = url.pathname.match(/^\/api\/messages\/([^/]+)\/recall$/);
+    if (recall && req.method === "POST") {
+      reply(200, { message: chat.recall(actor, recall[1]) });
       return;
     }
     throw new HttpError(404, "Route not found.");

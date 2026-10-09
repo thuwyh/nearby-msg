@@ -15,5 +15,10 @@ export type Message = {
   senderId: string;
   text: string;
   createdAt: string;
+  clientMessageId?: string;
+  recalled?: boolean;
+  image?: { name: string; dataUrl: string };
+  replyToId?: string;
+  replyTo?: { id: string; text: string; image?: { name: string; dataUrl: string }; recalled?: boolean };
 };
 export type Fault = "none" | "before-save" | "after-save";
