@@ -34,6 +34,10 @@ The views and basic interactions are supplied. Edit the UI and backend as needed
 The workbench calls the same backend you are editing. It does not implement the tasks, evaluate correctness or replace your own tests. The starter may show missing or incorrect behavior; task requirements are in the separate brief.
 The API restarts when you edit source; provider state persists.
 
+The page resumes saved local state; a fresh clone starts with no submitted request or messages. Use **Start over** to clear the demo state without changing code. A selected professional is only a notification recipient; per-person notification status shows whether a message was actually created, sent or delivered.
+
+**Consent** means a recipient’s permission to receive email or SMS from Nearby, not staff access permissions. Try this: submit Alex’s request, turn off **Allow email notifications** and save, then dispatch from Platform. T2 requires the queued email to be blocked. The starter may still send it; implementing this behavior is part of the exercise.
+
 The CLI is optional. The same operations are available in the workbench. For terminal use:
 
 ```sh

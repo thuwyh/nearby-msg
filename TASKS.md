@@ -23,11 +23,11 @@ File: src/tasks/t1-routing.ts
 - A: Use the matched professionals and the supplied service template. Do not notify unrelated users.
 - B: Deduplicate recipient IDs. Reject missing recipient or service data without partial writes.
 
-## T2 Honor current consent (12 points)
+## T2 Respect notification opt-outs (12 points)
 
-A withdrawal must affect queued messages and retries.
+Consent means the recipient agrees to email or SMS from Nearby. If Alex turns off email while a confirmation is queued, the platform must not send it, including on retry.
 
-Customer or Professional: withdraw consent after a message is queued; dispatch from Platform.
+Customer: submit Alex’s request, turn off “Allow email notifications” and save. Platform: send queued messages. Expect Alex’s email to be blocked. “Stop all notifications” blocks both channels.
 
 File: src/tasks/t2-consent.ts
 

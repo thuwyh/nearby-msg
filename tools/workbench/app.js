@@ -3,6 +3,7 @@ const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const escapeHtml=x=>String(x??'').replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;').replaceAll("'",'&#39;');
 let language='en';try{language=localStorage.getItem('nearby-workbench-language')==='zh-CN'?'zh-CN':'en';}catch{}
 const L=(en,zh)=>language==='zh-CN'?zh:en;
+let resumedSession=null;
 let view='customer',professionalId='pro-1';
 let panel='overview',evidence='provider',selected=null,busy=false,state=null,provider=null,requests=[],previewResult=null,detail=null;
 const original=new Map();
@@ -29,7 +30,7 @@ async function act(label,fn){if(busy)return;setBusy(true);try{const value=await 
 async function refresh(){
  const [s,p]=await Promise.allSettled([api('/dev/state'),api('/dev/provider/records')]);
  if(s.status==='rejected'){$('#connection').textContent=L('API offline','API 未连接');throw s.reason;}
- state=s.value;provider=p.status==='fulfilled'?p.value:null;
+ state=s.value;if(resumedSession===null)resumedSession=Boolean((state.journeys??[]).length||state.messages.length||state.users.some(u=>u.revision>1));provider=p.status==='fulfilled'?p.value:null;
  $('#connection').textContent=provider?L('API + messaging gateway connected','API 与消息供应商已连接'):L('Provider offline','供应商未连接');
  if(selected&&!state.messages.some(m=>m.id===selected)){selected=null;detail=null;}
  if(selected)detail=await api('/messages/'+encodeURIComponent(selected));
@@ -53,7 +54,7 @@ function renderState(){
  const allowed=['pending','reconciling','accepted','delivered','failed','suppressed','expired','held_out'];
  $('#messages').innerHTML=state.messages.map(m=>`<tr class="${m.id===selected?'selected':''}"><td><button data-message="${escapeHtml(m.id)}">${escapeHtml(state.users.find(u=>u.id===m.userId)?.name??m.userId)}</button><small>${escapeHtml(m.channel==='email'?L('Email','邮件'):L('SMS','短信'))} · ${escapeHtml(m.purpose==='transactional'?L('Service notice','服务通知'):L('Engagement','互动消息'))}<br>${escapeHtml(m.id.length>18?m.id.slice(0,16)+'…':m.id)}</small></td><td><span class="badge ${allowed.includes(m.status)?m.status:''}">${escapeHtml(readableStatus(m.status))}</span><small>${escapeHtml(readableReason(m.reason))}</small></td><td>${escapeHtml(m.attempts)}</td><td><small>${escapeHtml(m.nextAt)}<br>${m.expiresAt?escapeHtml(m.expiresAt):'—'}</small></td></tr>`).join('');
  $('#message-empty').hidden=state.messages.length>0;
- $('#users').innerHTML=state.users.map(u=>`<div class="user-card" data-user="${escapeHtml(u.id)}"><strong>${escapeHtml(u.name)} · ${escapeHtml(u.id)}</strong><small>${escapeHtml(u.zone)} · revision ${u.revision}</small><div class="consent-options"><label><input type="checkbox" data-consent="email" ${u.email?'checked':''}>email</label><label><input type="checkbox" data-consent="sms" ${u.sms?'checked':''}>sms</label><label><input type="checkbox" data-consent="dnc" ${u.dnc?'checked':''}>${L('Do not contact','禁止联系')}</label></div><button data-save-user="${escapeHtml(u.id)}">${L('Save preferences','保存授权')}</button></div>`).join('');
+ $('#users').innerHTML=state.users.map(preferenceCard).join('');
  renderDetail();renderPerspectives();
 }
 function renderDetail(){
@@ -80,7 +81,7 @@ $$('[data-panel]').forEach(b=>b.addEventListener('click',()=>switchPanel(b.datas
 $$('[data-evidence]').forEach(b=>b.addEventListener('click',()=>{evidence=b.dataset.evidence;renderEvidence();}));
 $('#load-scene').addEventListener('click',()=>$('#reset-dialog').showModal());
 $('#cancel-reset').addEventListener('click',()=>$('#reset-dialog').close());
-$('#confirm-reset').addEventListener('click',()=>{$('#reset-dialog').close();act(L('Sample data reset. Create a notification to begin.','示例数据已重置，请生成一条业务通知。'),async()=>{await api('/dev/reset',{fixture:'baseline'});selected=null;detail=null;previewResult=null;renderPreview();switchView('customer');$('#event-id').value=crypto.randomUUID();$('#retry-message').value='';$('#receipt-provider').value='';});});
+$('#confirm-reset').addEventListener('click',()=>{$('#reset-dialog').close();act(L('Fresh simulation ready. Submit Alex’s request to begin.','已开始全新模拟。请先由 Alex 提交维修需求。'),async()=>{await api('/dev/reset',{fixture:'baseline'});resumedSession=false;selected=null;detail=null;previewResult=null;renderPreview();switchView('customer');$('#event-id').value=crypto.randomUUID();$('#retry-message').value='';$('#receipt-provider').value='';});});
 $('#dispatch').addEventListener('click',()=>act(L('Dispatch complete. Check each message’s status below.','发送已执行，请查看消息列表中的状态。'),()=>api('/tick',{})));
 $('#refresh').addEventListener('click',()=>act(L('Refreshed','已刷新'),async()=>{}));
 $$('[data-advance]').forEach(b=>b.addEventListener('click',()=>act(L('Clock advanced','时钟已推进'),()=>api('/clock',{now:new Date(Date.parse(state.now)+Number(b.dataset.advance)*1000).toISOString()}))));
@@ -88,7 +89,7 @@ form('#clock-form',v=>api('/clock',{now:v.now}));
 form('#event-form',async v=>{const messages=await api('/events',v);return {notice:messages.length?L(`${messages.length} message(s) created. Click “Send queued messages” next.`,`已生成 ${messages.length} 条消息，尚未发送。接下来点击「执行发送」。`):L('The backend returned no messages for this event. See the request log for its response.','后端没有为这个事件生成消息。可展开详细记录查看接口响应。')};});
 form('#job-form',v=>api('/dev/job',{...v,providers:split(v.providers)}));
 form('#message-form',async v=>{const count=Number(v.count);if(!Number.isInteger(count)||count<1||count>10)throw new Error('Count must be 1–10');const scheduledAt=v.scheduledAt?iso(v.scheduledAt):state.now;for(let i=0;i<count;i++)await api('/dev/message',{userId:v.userId,channel:v.channel,purpose:v.purpose,scheduledAt,nextAt:scheduledAt,expiresAt:v.expiresAt?iso(v.expiresAt):null,experimentId:v.experimentId||null,body:v.body,template:v.purpose==='engagement'?'followup':'confirmation'});});
-document.addEventListener('click',e=>{const b=e.target.closest('[data-save-user]');if(!b)return;const card=b.closest('[data-user]');act(L('Preferences saved','授权已保存'),()=>api('/consent',{userId:b.dataset.saveUser,...Object.fromEntries([...card.querySelectorAll('[data-consent]')].map(x=>[x.dataset.consent,x.checked]))}));});
+document.addEventListener('click',e=>{const b=e.target.closest('[data-save-user]');if(!b)return;const card=b.closest('[data-user]');act(L('Notification choices saved. Dispatch to observe whether the backend honors them.','通知设置已保存。再次执行发送，可观察后端是否遵守你的选择。'),()=>api('/consent',{userId:b.dataset.saveUser,...Object.fromEntries([...card.querySelectorAll('[data-consent]')].map(x=>[x.dataset.consent,x.checked]))}));});
 $('#fault-preset').addEventListener('change',e=>$('#fault-modes').value=e.target.value);
 form('#fault-form',v=>api('/dev/provider/fault',{userId:v.userId,modes:split(v.modes)}));
 $('#release').addEventListener('click',()=>act(L('Responses released','响应已释放'),()=>api('/dev/provider/release',{})));
@@ -106,14 +107,27 @@ function switchView(next){
 }
 function preferenceCard(user){
  if(!user)return '';
- return `<div class="user-card" data-user="${escapeHtml(user.id)}"><strong>${escapeHtml(user.name)}</strong><small>${escapeHtml(user.zone)} · ${L('Revision','版本')} ${user.revision}</small><div class="consent-options"><label><input type="checkbox" data-consent="email" ${user.email?'checked':''}>${L('Email','邮件')}</label><label><input type="checkbox" data-consent="sms" ${user.sms?'checked':''}>${L('SMS','短信')}</label><label><input type="checkbox" data-consent="dnc" ${user.dnc?'checked':''}>${L('Do not contact','禁止联系')}</label></div><button data-save-user="${escapeHtml(user.id)}">${L('Save preferences','保存偏好')}</button></div>`;
+ return `<div class="user-card" data-user="${escapeHtml(user.id)}"><strong>${escapeHtml(user.name)}</strong><p class="hint">${L('These choices mean “Nearby may contact me”. Sample accounts initially allow both channels.','这些开关表示「我同意 Nearby 联系我」。示例账号初始允许邮件和短信。')}</p><div class="consent-options"><label><input type="checkbox" data-consent="email" ${user.email?'checked':''}>${L('Allow email notifications','允许邮件通知')}</label><label><input type="checkbox" data-consent="sms" ${user.sms?'checked':''}>${L('Allow SMS notifications','允许短信通知')}</label><label><input type="checkbox" data-consent="dnc" ${user.dnc?'checked':''}>${L('Stop all notifications (overrides both above)','停止所有通知（优先于上面两个开关）')}</label></div><button data-save-user="${escapeHtml(user.id)}">${L('Save notification choices','保存通知设置')}</button><p class="hint consent-example">${L('Example: switch email off and save while a message is queued. When sending next, the backend should block that email. Already accepted messages cannot be recalled.','例如：一封邮件还在排队时，关闭邮件开关并保存；之后发送时，后端应拦截它。已交给消息供应商的邮件无法撤回。')}</p><small>${escapeHtml(user.zone)} · ${L('Saved settings revision','已保存设置版本')} ${user.revision}</small></div>`;
 }
 function renderInbox(userId,target){
  const messages=state.messages.filter(m=>m.userId===userId&&m.status==='delivered');
  $(target).innerHTML=messages.length?messages.map(m=>`<article class="inbox-message"><span class="channel-label">${m.channel==='sms'?'SMS':L('Email','邮件')} · ${L('From Nearby','来自 Nearby')}</span><p>${escapeHtml(m.body)}</p><small>${escapeHtml(m.jobId)} · ${escapeHtml(m.id)}</small></article>`).join(''):`<div class="empty">${L('No delivered messages yet. After dispatch, the platform can submit a delivery receipt from message details.','还没有已送达消息。平台执行发送后，可在消息详情里提交送达回执。')}</div>`;
 }
-const stageName=stage=>({draft:L('Not submitted','尚未提交'),submitted:L('Waiting for a match','等待匹配'),matched:L('Professionals selected','已匹配服务人员'),completed:L('Service completed','服务已完成')}[stage]);
+function notificationSummary(userId,jobId){
+ const recipient=escapeHtml(state.users.find(u=>u.id===userId)?.name??userId);
+ const messages=state.messages.filter(m=>m.userId===userId&&m.jobId===jobId);
+ if(!messages.length)return `<p class="notification-status">${L('Messages to ','发给 ')}${recipient}${L(': none created.',' 的通知：尚未生成。')}</p>`;
+ return `<div class="notification-status"><strong>${L('Messages to ','发给 ')}${recipient}${L('',' 的通知')}</strong>${messages.map(m=>`<p>${m.channel==='email'?L('Email','邮件'):'SMS'} · ${escapeHtml(readableStatus(m.status))} · ${L('Send attempts','发送尝试')} ${m.attempts}</p>`).join('')}</div>`;
+}
+function renderSession(){
+ const journey=(state.journeys??[]).find(j=>j.id==='job-1');
+ const isFresh=!journey&&!state.messages.length;
+ const title=resumedSession?L('Continuing a saved simulation','正在继续上次保存的模拟'):isFresh?L('Fresh simulation · start as Alex','全新模拟 · 从 Alex 开始'):L('Current simulation','当前模拟');
+ $('#session-summary').innerHTML=`<div><strong>${title}</strong><p>${resumedSession?L('Your earlier actions are stored locally. Refreshing or restarting does not clear them.','之前的操作保存在本地，刷新页面或重启服务不会清空。'):L('Act as Customer to submit a request, Platform to send its confirmation, then Customer to inspect delivery.','先以客户身份提交需求，再以平台身份发送确认邮件，最后回到客户视角查看结果。')}</p><span>${L('Messages created','已生成消息')} ${state.messages.length} · ${L('Gateway send calls','发送调用')} ${provider?provider.calls.length:'—'} · ${L('Delivered','已送达')} ${state.messages.filter(m=>m.status==='delivered').length}</span></div><button data-start-over>${L('Start over','从头开始')}</button>`;
+}
+const stageName=stage=>({draft:L('Not submitted','尚未提交'),submitted:L('Waiting for a match','等待匹配'),matched:L('Recipient list selected','已选好通知名单'),completed:L('Service completed','服务已完成')}[stage]);
 function renderPerspectives(){
+ renderSession();
  const job=state.jobs.find(j=>j.id==='job-1');
  if(!job){$('#customer-request').textContent=L('Sample request unavailable. Reset sample data to begin.','示例需求不存在，请重置示例数据。');return;}
  const journey=(state.journeys??[]).find(j=>j.id===job.id),stage=journey?.stage??'draft';
@@ -125,23 +139,27 @@ function renderPerspectives(){
  const matched=stage==='matched'||stage==='completed';
  const matchNames=(job.providers??[]).map(id=>state.users.find(u=>u.id===id)?.name??id).join(', ');
  const heading=`<span class="eyebrow">${escapeHtml(job.id)} · ${escapeHtml(stageName(stage))}</span><h2>${escapeHtml(job.service)} · ${L('Home service request','上门维修需求')}</h2>`;
- $('#customer-request').innerHTML=heading+`<p>${L('I need help fixing the plumbing at home.','我家需要维修水管，希望找到能上门处理的师傅。')}</p>`+(stage==='draft'?`<button class="primary" data-journey="submit">${L('Submit service request','提交维修需求')}</button>`:`<p>${matched?L('Nearby selected: ','平台已选择：')+escapeHtml(matchNames):L('Your request was submitted. The platform will select professionals next.','需求已提交，等待平台选择服务人员。')}</p><p class="hint">${L('Notifications appear in your inbox after delivery.','通知送达后会显示在你的收件箱中。')}</p>`);
+ $('#customer-request').innerHTML=heading+`<p>${L('I need help fixing the plumbing at home.','我家需要维修水管，希望找到能上门处理的师傅。')}</p>`+(stage==='draft'?`<button class="primary" data-journey="submit">${L('Submit service request','提交维修需求')}</button>`:`<p>${matched?L('Chosen notification recipients (not delivery confirmation): ','平台选定的通知对象（不代表已发送）：')+escapeHtml(matchNames):L('Your request was submitted. The platform will select professionals next.','需求已提交，等待平台选择服务人员。')}</p><p class="hint">${L('Notifications appear in your inbox after delivery.','通知送达后会显示在你的收件箱中。')}</p>`);
+ $('#customer-request').insertAdjacentHTML('beforeend',notificationSummary(job.customerId,job.id)+(stage!=='draft'?`<button data-go-view="platform">${L('Go to Platform to inspect and send','去平台查看并发送')}</button>`:''));
  $('#customer-preferences').innerHTML=preferenceCard(customer);
  renderInbox(job.customerId,'#customer-inbox');
  const isMatched=matched&&job.providers.includes(professionalId);
- $('#professional-request').innerHTML=`<h2>${L('Requests matched to me','分配给我的需求')}</h2>`+(isMatched?`<div class="request-summary">${heading}<p>${L('Customer','客户')}：${escapeHtml(customer?.name??job.customerId)}</p><p class="hint">${L('You are on the platform’s selected list. Check your inbox separately for the SMS notification. Booking and job acceptance are outside this simulator.','你已在平台选定的名单中。短信是否送达，请查看收件箱；本模拟器不包含接单和预约流程。')}</p></div>`:`<p class="empty">${L('No requests matched to this professional. Select them in Platform to create a match.','尚未匹配到需求。平台选择这位服务人员后，这里才会出现需求。')}</p>`);
+ $('#professional-request').innerHTML=`<h2>${L('Requests the platform selected me for','平台为我选中的需求')}</h2>`+(isMatched?`<div class="request-summary">${heading}<p>${L('Customer','客户')}：${escapeHtml(customer?.name??job.customerId)}</p><p class="hint">${L('You are on the platform’s selected list. Check your inbox separately for the SMS notification. Booking and job acceptance are outside this simulator.','你已在平台选定的名单中。短信是否送达，请查看收件箱；本模拟器不包含接单和预约流程。')}</p></div>`:`<p class="empty">${L('No requests matched to this professional. Select them in Platform to create a match.','尚未匹配到需求。平台选择这位服务人员后，这里才会出现需求。')}</p>`);
+ $('#professional-request').insertAdjacentHTML('beforeend',notificationSummary(professionalId,job.id));
  $('#professional-preferences').innerHTML=preferenceCard(state.users.find(u=>u.id===professionalId));
  renderInbox(professionalId,'#professional-inbox');
  const timeline=['draft','submitted','matched','completed'];
  const steps=timeline.slice(1).map((st,i)=>`<li class="${timeline.indexOf(stage)>=i+1?'done':''}"><b>${i+1}</b>${[L('Customer submitted','客户提交'),L('Platform matched','平台匹配'),L('Service completed','服务完成')][i]}</li>`).join('');
- const action=stage==='draft'?`<p>${L('Alex has not submitted the request yet. Start in Customer.','Alex 尚未提交需求，请先进入客户视角。')}</p><button data-go-view="customer">${L('Go to Customer','进入客户视角')}</button>`:stage==='submitted'?`<form id="match-form"><p>${L('Select the professionals who should receive this plumbing request. Matching does not mean they have accepted the job.','选择应收到这条维修需求的服务人员。匹配不代表他们已经接单。')}</p><div class="match-options">${pros.map(u=>`<label><input type="checkbox" name="professional" value="${escapeHtml(u.id)}" ${job.providers.includes(u.id)?'checked':''}><strong>${escapeHtml(u.name)}</strong><span>${escapeHtml(u.id)}</span></label>`).join('')}</div><button class="primary" data-journey="match">${L('Confirm match','确认匹配')}</button></form>`:stage==='matched'?`<p>${L('Selected professionals','已选择服务人员')}：<strong>${escapeHtml(matchNames)}</strong></p><button data-journey="complete">${L('Mark service completed','确认服务完成')}</button><p class="hint">${L('This queues Alex’s next-day follow-up. Dispatch and delivery are separate steps below.','这将生成 Alex 的次日回访邮件。下方可单独执行发送和更新送达状态。')}</p>`:`<p>${L('The service is completed. Inspect the follow-up in the message list; use the simulated clock for tomorrow.','服务已完成。请在消息列表检查回访邮件，可推进模拟时钟到次日。')}</p>`;
+ const action=stage==='draft'?`<p>${L('Alex has not submitted the request yet. Start in Customer.','Alex 尚未提交需求，请先进入客户视角。')}</p><button data-go-view="customer">${L('Go to Customer','进入客户视角')}</button>`:stage==='submitted'?`<form id="match-form"><p>${L('Select the professionals who should receive this plumbing request. Matching does not mean they have accepted the job.','选择应收到这条维修需求的服务人员。匹配不代表他们已经接单。')}</p><div class="match-options">${pros.map(u=>`<label><input type="checkbox" name="professional" value="${escapeHtml(u.id)}" ><strong>${escapeHtml(u.name)}</strong><span>${escapeHtml(u.id)}</span></label>`).join('')}</div><button class="primary" data-journey="match">${L('Confirm match','确认匹配')}</button></form>`:stage==='matched'?`<p>${L('Selected professionals','已选择服务人员')}：<strong>${escapeHtml(matchNames)}</strong></p><button data-journey="complete">${L('Mark service completed','确认服务完成')}</button><p class="hint">${L('This queues Alex’s next-day follow-up. Dispatch and delivery are separate steps below.','这将生成 Alex 的次日回访邮件。下方可单独执行发送和更新送达状态。')}</p>`:`<p>${L('The service is completed. Inspect the follow-up in the message list; use the simulated clock for tomorrow.','服务已完成。请在消息列表检查回访邮件，可推进模拟时钟到次日。')}</p>`;
+ const recipientStatus=matched?`<div class="recipient-status">${job.providers.map(id=>`<section><strong>${escapeHtml(state.users.find(u=>u.id===id)?.name??id)}</strong>${notificationSummary(id,job.id)}</section>`).join('')}</div>`:'';
  const history=(journey?.history??[]).map(e=>`<li><strong>${escapeHtml(e.type)}</strong><small>${escapeHtml(e.at)} · ${escapeHtml(e.eventId)}</small></li>`).join('');
- $('#platform-request').innerHTML=`<div class="request-top"><div>${heading}<p>${L('Customer','客户')}：${escapeHtml(customer?.name??job.customerId)}</p></div><ol class="journey-steps">${steps}</ol></div>${action}${history?`<details class="journey-history"><summary>${L('Request event history','需求事件记录')}</summary><ul>${history}</ul></details>`:''}`;
+ $('#platform-request').innerHTML=`<div class="request-top"><div>${heading}<p>${L('Customer','客户')}：${escapeHtml(customer?.name??job.customerId)}</p></div><ol class="journey-steps">${steps}</ol></div>${action}${recipientStatus}${history?`<details class="journey-history"><summary>${L('Request event history','需求事件记录')}</summary><ul>${history}</ul></details>`:''}`;
 }
 $$('[data-view]').forEach(button=>button.addEventListener('click',()=>switchView(button.dataset.view)));
 $$('[data-debug]').forEach(button=>$('#debug-buttons').append(button));
 $('#professional-picker').addEventListener('change',e=>{professionalId=e.target.value;renderPerspectives();});
 document.addEventListener('click',e=>{
+ if(e.target.closest('[data-start-over]'))$('#reset-dialog').showModal();
  const link=e.target.closest('[data-go-view]');if(link)switchView(link.dataset.goView);
  const button=e.target.closest('[data-journey]');if(!button)return;e.preventDefault();
  const action=button.dataset.journey;
@@ -149,7 +167,7 @@ document.addEventListener('click',e=>{
  act(L('Request updated. Inspect the resulting messages in Platform.','需求已更新，可在平台视角查看生成的消息。'),async()=>{
   const result=await api('/dev/journey',{action,professionals});
   $('#event-id').value=result.event.id;$('#event-type').value=result.event.type;$('#event-job').value=result.event.jobId;
-  return {notice:L(`Request updated; backend produced ${result.messages.length} message(s). Dispatch from Platform.`,`需求已更新；后端生成了 ${result.messages.length} 条消息。请在平台视角执行发送。`)};
+  return {notice:result.messages.length?L(`Created ${result.messages.length} queued message(s). Nothing was sent by this action.`,`生成了 ${result.messages.length} 条待发消息；本次操作没有执行发送。`):L('Recipient list saved, but the backend created no notifications. Nothing was sent.','已保存通知名单，但后端没有生成通知，也没有发送。')};
  });
 });
 async function start(){try{translate();switchPanel(panel);await refresh();}catch(error){notice(error.message,true);}}
