@@ -9,7 +9,8 @@
   "scripts": {
     "start": "tsx src/server.ts",
     "dev": "node --watch --import tsx src/server.ts",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "node --import tsx --test test/*.test.ts"
   },
   "devDependencies": {
     "@types/node": "^24.19.1",

@@ -563,3 +563,6 @@ body:has(#guide:not([open])) .message-list {
   font-size: 16px;
   margin-bottom: 4px;
 }
+button.link { background: none; border: 0; padding: 0; color: inherit; text-decoration: underline; cursor: pointer; font: inherit; }
+.person button { margin-left: auto; }
+.meta.error { color: #b42318; }

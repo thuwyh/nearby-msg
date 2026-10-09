@@ -81,6 +81,12 @@ const dictionary = {
   open: ["Open conversation", "打开对话"],
   sending: ["Sending…", "发送中…"],
   applied: ["Applied to the next send.", "已应用到下一次发送。"],
+  messageBtn: ["Message", "发消息"],
+  recall: ["Recall", "撤回"],
+  recalled: ["Message recalled", "消息已撤回"],
+  retry: ["Retry", "重试"],
+  failed: ["Not sent", "未发送"],
+  pending: ["Sending…", "发送中…"],
   sendFailure: [
     "Message not confirmed. Your text is still below.",
     "未确认发送成功，输入内容已保留。",
@@ -95,6 +101,23 @@ let actor = "customer",
   busy = false,
   polling = false,
   lastMessages = "";
+const draftKey = (c = conversationId) => `nearby-draft:${actor}:${c}`;
+const saveDraft = () => {
+  if (!conversationId) return;
+  const v = $("message-input").value;
+  if (v) localStorage.setItem(draftKey(), v);
+  else localStorage.removeItem(draftKey());
+};
+const loadDraft = () => {
+  $("message-input").value = conversationId
+    ? localStorage.getItem(draftKey()) || ""
+    : "";
+};
+// Outbox of unconfirmed sends, per identity, survives refresh.
+const outboxKey = () => `nearby-outbox:${actor}`;
+const outbox = () => JSON.parse(localStorage.getItem(outboxKey()) || "[]");
+const setOutbox = (items) =>
+  localStorage.setItem(outboxKey(), JSON.stringify(items));
 const t = (key) => dictionary[key]?.[language === "zh-CN" ? 1 : 0] || key;
 const name = (p) => (p?.id === "support" ? t("support") : p?.name || "");
 const description = (p) =>
@@ -164,7 +187,7 @@ function renderState() {
     .filter((p) => p.id !== actor)
     .map(
       (p) =>
-        `<div class="person"><span class="avatar">${esc(initials(p))}</span><div><strong>${esc(name(p))}</strong><small>${esc(description(p))}</small></div></div>`,
+        `<div class="person"><span class="avatar">${esc(initials(p))}</span><div><strong>${esc(name(p))}</strong><small>${esc(description(p))}</small></div>${me.role === "customer" && p.role === "professional" ? `<button class="quiet" data-start="${esc(p.id)}">${esc(t("messageBtn"))}</button>` : ""}</div>`,
     )
     .join("");
   const selected = state.conversations.find((c) => c.id === conversationId);
@@ -183,17 +206,38 @@ function renderState() {
       `<div class="empty"><div class="empty-symbol" aria-hidden="true">…</div><strong>${esc(t("noConversation"))}</strong>${esc(t("noConversationBody"))}</div>`;
 }
 function renderMessages(messages) {
-  const signature = JSON.stringify(messages) + language + actor;
+  const confirmed = new Set(messages.map((m) => m.clientMessageId));
+  const pending = outbox().filter(
+    (o) => o.conversationId === conversationId && !confirmed.has(o.clientMessageId),
+  );
+  if (pending.length !== outbox().filter((o) => o.conversationId === conversationId).length)
+    setOutbox(outbox().filter((o) => !confirmed.has(o.clientMessageId)));
+  const signature =
+    JSON.stringify(messages) + JSON.stringify(pending) + language + actor;
   if (signature === lastMessages) return;
   lastMessages = signature;
   const list = $("message-list"),
     wasNearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 80;
-  list.innerHTML = messages.length
+  list.innerHTML = messages.length || pending.length
     ? messages
         .map((m) => {
           const sender = state.people.find((p) => p.id === m.senderId);
-          return `<article class="message ${m.senderId === actor ? "mine" : ""}"><div class="bubble">${esc(m.text)}</div><div class="meta">${esc(name(sender))} · ${esc(new Date(m.createdAt).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" }))}</div></article>`;
+          const mine = m.senderId === actor;
+          const body = m.recalled
+            ? `<em>${esc(t("recalled"))}</em>`
+            : esc(m.text);
+          const action =
+            mine && !m.recalled
+              ? ` · <button class="link" data-recall="${esc(m.id)}">${esc(t("recall"))}</button>`
+              : "";
+          return `<article class="message ${mine ? "mine" : ""}" data-id="${esc(m.id)}"><div class="bubble">${body}</div><div class="meta">${esc(name(sender))} · ${esc(new Date(m.createdAt).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" }))}${action}</div></article>`;
         })
+        .join("") +
+      pending
+        .map(
+          (o) =>
+            `<article class="message mine"><div class="bubble">${esc(o.text)}</div><div class="meta error">${esc(t(o.status))}${o.status === "failed" ? ` · <button class="link" data-retry="${esc(o.clientMessageId)}">${esc(t("retry"))}</button>` : ""}</div></article>`,
+        )
         .join("")
     : `<div class="empty"><div class="empty-symbol" aria-hidden="true">…</div><strong>${esc(t("emptyTitle"))}</strong>${esc(t("emptyBody"))}</div>`;
   if (!messages.length) list.scrollTop = 0;
@@ -213,6 +257,7 @@ async function refresh() {
     if (!state.conversations.some((c) => c.id === conversationId)) {
       conversationId = state.conversations[0]?.id || null;
       lastMessages = "";
+      loadDraft();
     }
     if (changed) renderState();
     if (conversationId) {
@@ -262,12 +307,50 @@ $("professional-select").onchange = (e) => {
 $("conversation-list").onclick = (e) => {
   const button = e.target.closest("[data-conversation]");
   if (!button) return;
-  conversationId = button.dataset.conversation;
+  selectConversation(button.dataset.conversation);
+};
+function selectConversation(id) {
+  conversationId = id;
   revision++;
   lastMessages = "";
-  $("message-input").value = "";
+  loadDraft();
   $("send-error").hidden = true;
   renderState();
+  refresh();
+}
+$("people-list").onclick = async (e) => {
+  const button = e.target.closest("[data-start]");
+  if (!button) return;
+  try {
+    const { conversation } = await api("/api/conversations", {
+      recipientId: button.dataset.start,
+    });
+    state = await api("/api/state");
+    selectConversation(conversation.id);
+  } catch (error) {
+    $("connection").textContent = error.message;
+  }
+};
+$("message-list").onclick = async (e) => {
+  const recall = e.target.closest("[data-recall]");
+  const retry = e.target.closest("[data-retry]");
+  try {
+    if (recall)
+      await api(`/api/messages/${encodeURIComponent(recall.dataset.recall)}/recall`, {});
+    if (retry) {
+      const item = outbox().find((o) => o.clientMessageId === retry.dataset.retry);
+      if (item) {
+        await deliver(item);
+        if (localStorage.getItem(draftKey(item.conversationId)) === item.text) {
+          localStorage.removeItem(draftKey(item.conversationId));
+          if (item.conversationId === conversationId) $("message-input").value = "";
+        }
+      }
+    }
+  } catch (error) {
+    $("send-error").textContent = error.message;
+    $("send-error").hidden = false;
+  }
   refresh();
 };
 $("language").onclick = () => {
@@ -284,11 +367,17 @@ $("composer").onsubmit = async (e) => {
   $("send").disabled = true;
   $("send").textContent = t("sending");
   $("send-error").hidden = true;
+  const item = {
+    clientMessageId: crypto.randomUUID(),
+    conversationId,
+    text,
+    status: "pending",
+  };
+  setOutbox([...outbox(), item]);
   try {
-    await api(
-      `/api/conversations/${encodeURIComponent(conversationId)}/messages`,
-      { text },
-    );
+    await deliver(item);
+    if (localStorage.getItem(draftKey(item.conversationId)) === text)
+      localStorage.removeItem(draftKey(item.conversationId));
     if (version === revision && $("message-input").value === text)
       $("message-input").value = "";
   } catch (error) {
@@ -307,6 +396,27 @@ $("composer").onsubmit = async (e) => {
     refresh();
   }
 };
+async function deliver(item) {
+  const sender = actor;
+  try {
+    await api(
+      `/api/conversations/${encodeURIComponent(item.conversationId)}/messages`,
+      { text: item.text, clientMessageId: item.clientMessageId },
+      sender,
+    );
+    if (actor === sender)
+      setOutbox(outbox().filter((o) => o.clientMessageId !== item.clientMessageId));
+  } catch (error) {
+    if (actor === sender)
+      setOutbox(
+        outbox().map((o) =>
+          o.clientMessageId === item.clientMessageId ? { ...o, status: "failed" } : o,
+        ),
+      );
+    throw error;
+  }
+}
+$("message-input").oninput = saveDraft;
 $("message-input").onkeydown = (e) => {
   if (e.key === "Enter" && !e.shiftKey && !e.isComposing) {
     e.preventDefault();

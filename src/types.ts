@@ -15,5 +15,7 @@ export type Message = {
   senderId: string;
   text: string;
   createdAt: string;
+  clientMessageId?: string;
+  recalled?: boolean;
 };
 export type Fault = "none" | "before-save" | "after-save";

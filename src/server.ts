@@ -94,13 +94,22 @@ const server = createServer(async (req, res) => {
           503,
           "Connection failed before the message was saved.",
         );
-      const message = chat.send(actor, messages[1], body);
+      const { message, created } = chat.send(actor, messages[1], body);
       if (fault === "after-save")
         throw new HttpError(
           503,
           "Connection lost. The server saved the message, but the sender did not receive confirmation.",
         );
-      reply(201, { message });
+      reply(created ? 201 : 200, { message });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/conversations") {
+      reply(200, { conversation: chat.start(actor, body) });
+      return;
+    }
+    const recall = url.pathname.match(/^\/api\/messages\/([^/]+)\/recall$/);
+    if (recall && req.method === "POST") {
+      reply(200, { message: chat.recall(actor, recall[1]) });
       return;
     }
     throw new HttpError(404, "Route not found.");
