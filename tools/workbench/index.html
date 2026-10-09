@@ -6,6 +6,32 @@
 <main>
 <section class="page-intro"><div><h1 data-zh="消息中心">Message center</h1><p data-zh="为客户和服务人员发送通知，并查看每条消息的处理结果。">Send notifications to customers and professionals, and see what happened to each message.</p></div><button id="refresh" data-zh="刷新数据">Refresh data</button></section>
 <ol class="steps"><li><b>1</b><span data-zh="选择业务事件，生成消息">Choose an event and create messages</span></li><li><b>2</b><span data-zh="点击「执行发送」">Click “Send queued messages”</span></li><li><b>3</b><span data-zh="查看状态，点击消息看详情">Inspect the status and open a message</span></li></ol>
+<details class="operator-guide" id="operator-guide">
+<summary data-zh="操作指南 · 1 分钟上手">Quick guide · get started in one minute</summary>
+<div class="guide-content">
+<section><h2 data-zh="先跑通一条消息">Send your first message</h2>
+<ol>
+<li data-zh="在「业务通知」保留默认的「客户提交需求」和 Alex 的订单，点击「1. 生成待发送消息」。">In Business notifications, keep “Customer requests service” and Alex’s order selected. Click “1. Create queued messages”.</li>
+<li data-zh="右侧出现消息后，点击「2. 执行发送」。生成消息和发送是两个独立步骤。">When the message appears on the right, click “2. Send queued messages”. Creating and sending are separate steps.</li>
+<li data-zh="点击消息里的接收者名字（如 Alex）查看内容和状态；点击「更新送达状态」，提交 delivered 回执可模拟送达。">Click the recipient’s name, such as Alex, to inspect the message. Choose “Update delivery status” and submit a delivered receipt to simulate delivery.</li>
+</ol><p class="guide-note" data-zh="「供应商已接受」不等于「已送达」。页面展示当前后端的真实结果；操作请求成功也不代表业务行为正确。">“Provider accepted” is not “Delivered”. The UI shows the current backend’s actual results; a successful request does not establish correct business behavior.</p></section>
+<section><h2 data-zh="各入口用来做什么">Where to find each control</h2>
+<dl>
+<dt data-zh="业务通知">Business notifications</dt><dd data-zh="用订单事件生成消息。展开「事件标识与重放」可保留同一 ID 重复提交；点「新 ID」可模拟另一条事件。">Generate messages from service events. Expand “Event identity &amp; replay” to resubmit the same ID, or choose “New ID” for another event.</dd>
+<dt data-zh="自定义消息">Custom messages</dt><dd data-zh="直接创建消息，选择接收者、渠道、用途、计划时间、过期时间和实验 ID。创建后仍需执行发送。">Create messages with a recipient, channel, purpose, schedule, expiry and experiment ID. Dispatch them afterward.</dd>
+<dt data-zh="用户授权">User preferences</dt><dd data-zh="修改邮件、短信授权或「禁止联系」，保存后再发送，观察消息状态。">Change email/SMS consent or “Do not contact”, save, then dispatch and observe the result.</dd>
+<dt data-zh="活动预览">Campaign preview</dt><dd data-zh="输入用户和计划，查看后端返回的预览决策；这个按钮不会执行发送。">Enter users and a schedule to inspect the backend’s preview decisions. This button does not dispatch messages.</dd>
+<dt data-zh="供应商模拟">Provider simulation</dt><dd data-zh="先选用户和故障预设并应用，再执行发送。可模拟临时失败、永久失败、接受前或接受后超时；响应序列按次消耗。">Apply a fault preset for a user before dispatching. Simulate temporary/permanent failures or timeouts before/after acceptance; outcomes are consumed in order.</dd>
+<dt data-zh="消息详情">Message details</dt><dd data-zh="点击列表中的接收者，提交回执或请求重试。重试可切换 operator / viewer 身份；请求重试后仍需执行发送。">Click a recipient to submit receipts or request a retry. Retry as operator or viewer, then dispatch to observe the outcome.</dd>
+</dl></section>
+<section><h2 data-zh="时间、数据和排查">Time, data and troubleshooting</h2>
+<ul>
+<li data-zh="调度使用模拟时钟，不会随现实时间自动前进。在「模拟时间与数据管理」中推进时间后，还要点击「执行发送」。">Scheduling uses the simulated clock, which does not advance with wall-clock time. Advance it under “Simulated time &amp; data”, then dispatch.</li>
+<li data-zh="同一区域的「重置示例数据」会清空本地消息、授权改动和供应商记录，并恢复初始时钟。刷新页面或重启服务不会重置这些数据。">“Reset sample data” clears local messages, preference changes and provider records, and restores the initial clock. Reloading the page or restarting services does not reset them.</li>
+<li data-zh="展开底部「详细记录」查看供应商是否真的接受了消息、发送调用次数、审计记录和每次操作的请求与响应。操作日志只保留当前浏览器会话。">Expand “Detailed records” to inspect provider acceptances, send calls, audit entries and request/response data. The request log lasts for the current browser session only.</li>
+<li data-zh="如果顶部显示未连接，请确认 npm run dev 正在运行，再点击「刷新数据」。这里只做本地模拟，不会发送真实邮件或短信。">If the header shows a disconnected service, check that npm run dev is running, then click “Refresh data”. No real email or SMS is sent.</li>
+</ul></section>
+</div></details>
 <div id="notice" role="status" aria-live="polite" hidden></div>
 <details class="simulation"><summary data-zh="模拟时间与数据管理">Simulated time &amp; data</summary><section class="clock-bar"><div><span class="eyebrow" data-zh="模拟时钟 · UTC">SIMULATED CLOCK · UTC</span><strong id="clock">—</strong><small id="local-clock"></small></div><div class="clock-actions"><button data-advance="60" data-zh="+1 分钟">+1 min</button><button data-advance="3600" data-zh="+1 小时">+1 hour</button><button data-advance="86400" data-zh="+1 天">+1 day</button></div></section>
 <details class="clock-edit"><summary data-zh="设置精确时间">Set exact time</summary><form id="clock-form" class="inline"><label><span data-zh="UTC 时间（ISO）">UTC time (ISO)</span><input name="now" id="clock-input" required placeholder="2026-10-15T17:00:00Z"></label><button data-zh="设置时钟">Set clock</button></form></details>
