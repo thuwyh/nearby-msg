@@ -1,123 +1,109 @@
-# Tasks
+# Nearby Chat
 
-30 minutes. Choose your order. AI tools are welcome. Each task has two acceptance groups, worth half its stated weight. You do not need to finish everything.
+30 minutes · AI welcome
 
-## The scenario
+Alex needs a plumber. Help customers, professionals and platform support communicate through Nearby.
 
-Alex needs a plumber. A service request (job-1) represents that need. Submitting it, selecting professionals and completing the service produce the three input events.
+A working text conversation between Alex and Nearby Support, with Customer, Professional and Platform views. Switch to Platform to reply. Jordan and Sam start without conversations. No messages are preloaded.
 
-Customer · Alex: Submit the request, manage contact preferences and read delivered emails or SMS.
-Professional · Jordan / Sam: Switch people to see their matched requests, preferences and delivered notifications. A match means the platform selected them to receive the request; no matching algorithm or booking flow is required.
-Platform · Nearby: Select professionals, mark service complete, send messages, preview campaigns and investigate failures. The messaging gateway is the email/SMS vendor, not the home-service professional.
+Pick your priorities. Implement working features in the UI and backend, and write your own tests. You are not expected to finish all ten.
 
-The three views and basic interactions are provided. Modify the frontend and backend as needed to make your chosen tasks work end to end. Demonstrate actual backend behavior through the views and your own tests. No page redesign is required.
+## T1 · Send a photo
 
-## T1 Route matched requests (6 points)
+Alex wants to show the plumber where the sink is leaking.
 
-The platform selects Jordan, Sam or both for Alex’s plumbing request. Send one SMS to each selected professional.
+Start with the existing support conversation
 
-Platform: confirm a match, dispatch, submit delivery receipts, then switch between Jordan and Sam.
+- Choose a PNG, JPEG or WebP image (up to 2 MiB), send it, and open it at a larger size on either side. Text is optional.
+- The image remains available after refresh. Reject unsupported files and oversized images with a clear error.
 
-File: src/tasks/t1-routing.ts
+## T2 · Message a professional
 
-- A: Use the matched professionals and the supplied service template. Do not notify unrelated users.
-- B: Deduplicate recipient IDs. Reject missing recipient or service data without partial writes.
+Alex wants to discuss the repair separately with Jordan and Sam.
 
-## T2 Respect notification opt-outs (12 points)
+Start with the existing support conversation
 
-Consent means the recipient agrees to email or SMS from Nearby. If Alex turns off email while a confirmation is queued, the platform must not send it, including on retry.
+- Start a conversation with either professional. Switch to that professional to read and reply. Reopening a contact returns to the same conversation.
+- Jordan and Sam cannot see each other’s conversations. Conversations and messages survive refresh and restart.
 
-Customer: submit Alex’s request, turn off “Allow email notifications” and save. Platform: send queued messages. Expect Alex’s email to be blocked. “Stop all notifications” blocks both channels.
+## T3 · Recall a message
 
-File: src/tasks/t2-consent.ts
+A sender notices they sent the wrong information.
 
-- A: Require consent for the selected channel. Global do-not-contact overrides every message purpose.
-- B: Recheck before each send and record the consent revision. Never resurrect suppressed messages or rewrite an accepted send.
+Start with the existing support conversation
 
-## T3 Deduplicate incoming events (10 points)
+- A sender can recall their own message. Both sides see “Message recalled”, including after refresh. Keep the message’s place in the conversation.
+- Another person cannot recall it. Recalled content is no longer returned to recipients; if you also build images, search or quotes, they must respect recall.
 
-Upstream retries should not create extra message intentions.
+## T4 · Show unread messages
 
-Platform → Advanced debugging: replay an event from the request history.
+Alex wants to know which conversations need attention.
 
-File: src/tasks/t3-dedup.ts
+Start with the existing support conversation
 
-- A: Replay the same event ID and payload with the same result. Reject reuse of that ID with different data.
-- B: Persist the decision across restarts. Keep distinct recipients, channels and purposes separate.
+- Show an unread count per conversation. Opening a conversation marks the messages actually viewed as read; your own messages do not count.
+- Read status belongs to each person and survives refresh. Reading one conversation does not clear another.
 
-## T4 Respect schedules and expiry (8 points)
+## T5 · Reply to a specific message
 
-Send neither too early nor after a message loses its value.
+Several repair details are being discussed at once.
 
-Platform: complete the service or create a scheduled message; advance the simulated clock.
+Start with the existing support conversation
 
-File: src/tasks/t4-schedule.ts
+- Select a message to reply to. Show a preview before sending and the quoted message with the reply; allow cancelling the selection.
+- Quotes can only reference the same conversation. If recall is implemented, recalled content disappears from quotes too.
 
-- A: Honor scheduledAt and nextAt. At or after expiresAt, expire without sending.
-- B: If the earliest eligible time reaches expiry, do not catch up later. Use the supplied clock, including after restart.
+## T6 · Keep separate drafts
 
-## T5 Recover uncertain sends (14 points)
+Alex switches between two plumbers while comparing their advice.
 
-A timeout does not tell you whether a message was accepted.
+Requires: T2
 
-Platform → Gateway faults: configure a timeout or failure, dispatch and inspect the records.
+- Keep unsent text separately for each conversation when switching or refreshing. A successful send clears only that conversation’s draft.
+- Drafts are private to each identity: switching to a professional must not expose Alex’s draft. A failed send preserves the draft.
 
-File: src/tasks/t5-recovery.ts
+## T7 · Retry a failed send
 
-- A: Retry temporary failures after 60 and 120 seconds; at most three send calls. Do not retry permanent failures.
-- B: Recover both timeout modes and process restarts using persistent identity. Produce at most one provider message. After withdrawal, lookup is allowed; another send is not.
+A weak connection leaves Alex unsure whether a message went through.
 
-## T6 Share send limits (12 points)
+Start with the existing support conversation
 
-Protect people from late-night messages and overlapping campaigns.
+- Use Simulation controls to fail the next send. Show a failed or unconfirmed message with a Retry action; retry the same content.
+- Handle both failure before saving and lost confirmation after saving. Repeated retries of one message leave exactly one copy for the recipient; two intentional identical messages remain separate.
 
-Platform: create engagement messages for the same person; try late-night and repeated sends.
+## T8 · Search the conversation
 
-File: src/tasks/t6-limits.ts
+Alex wants to find a detail mentioned earlier.
 
-- A: Defer engagement messages during local 21:00–08:00. Transactional messages are exempt from quiet hours and engagement caps.
-- B: Across channels and campaigns, accept at most two engagement messages per user per local day. Failed attempts, holdout and duplicate receipts do not consume quota. Combine limits with scheduling and expiry.
+Start with the existing support conversation
 
-## T7 Handle duplicate and late receipts (8 points)
+- Search text in the current conversation, show matching messages, and select a result to locate it in the conversation. Clearing search restores the normal view.
+- Do not expose another conversation’s messages. If recall is implemented, recalled content cannot appear in results.
 
-Project delivery status by provider sequence, not arrival order.
+## T9 · Block a professional
 
-Platform → Message details: submit repeated or out-of-order delivery receipts.
+Alex no longer wants messages from a particular professional.
 
-File: src/tasks/t7-receipts.ts
+Requires: T2
 
-- A: Replay identical callbacks without applying them again. Preserve the valid event history.
-- B: Use the highest sequence. Reject conflicting same-ID/same-sequence content and unknown provider message IDs without overwriting current status.
+- Alex can block or unblock a professional. While blocked, new messages from that professional are rejected and the sender sees a clear explanation.
+- Existing history stays visible. Blocking persists after refresh and does not affect other conversations; unblocking permits new messages without delivering previously rejected ones.
 
-## T8 Add a stable holdout (6 points)
+## T10 · Invite platform support
 
-Keep experiment assignments consistent across a user's messages.
+Alex needs the platform to help resolve a disagreement with a plumber.
 
-Platform: create engagement messages with one experiment ID; compare groups across events.
+Requires: T2
 
-File: src/tasks/t8-experiment.ts
+- Alex can invite Nearby Support into one professional conversation. Platform view can then read its history and reply; Alex and the professional both see the reply.
+- The platform cannot read private conversations before being invited. Repeated invitations do not duplicate the conversation, and unrelated conversations remain private.
 
-- A: Use bucket(userId, experimentId): 0–19 holdout, 20–59 template A, 60–99 template B. Keep assignments stable across events and restarts.
-- B: Holdout sends nothing and consumes no quota. Experiments cannot bypass other rules and do not affect transactional messages.
+## When features meet
 
-## T9 Preview a campaign (10 points)
+Keep conversations and identities separate. Data should survive refresh. If you combine recall with images, quotes or search, recalled content must disappear there too. Retries must not create duplicate messages.
 
-Explain what would happen without actually sending anything.
+## Submit a PR
 
-Platform → Campaign preview: preview a plan, change recipient preferences, then dispatch.
+Fork the repository and open a PR to thuwyh/nearby-msg. Include completed task IDs, demo steps, test commands and remaining gaps.
 
-File: src/tasks/t9-preview.ts
-
-- A: Deduplicate users. Show each decision, reason and earliest send time with matching totals. Do not write messages, send or spend quota.
-- B: Reuse the same decision interface as dispatch. Report unsupported policies. Recheck at actual send time; a preview is not permission.
-
-## T10 Make support retries safe (14 points)
-
-An internal retry button must obey the same platform rules.
-
-Platform → Message details: request a retry as operator or viewer, then dispatch.
-
-File: src/tasks/t10-support.ts
-
-- A: Only the supplied operator identity can retry. Audit accepted and rejected operations; replay a request ID without scheduling twice.
-- B: Preserve the message key and attempt budget. Do not resend terminal messages. Reconcile unknown outcomes—even after the send budget runs out. Eligible retries still pass all active send policies.
+Show that your chosen features work together. Quality, prioritization and verification matter alongside completion.

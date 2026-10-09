@@ -1,89 +1,52 @@
-# Behavior and API
+# API notes
 
-These are exercise rules, not a statement of legal compliance. Use the fake clock. No real messages are sent.
+The UI is the product. Implement selected tasks end to end; UI-only mock results are not sufficient. The conventions below make it easy to review submissions, but you may change them and explain the mapping in your PR. Unselected task APIs need not exist.
 
-## Shared rules
+## Starter
 
-- Event identity: event ID plus identical payload. Intention identity: event ID, user ID, channel, purpose. Conflicting event reuse is HTTP 409.
-- Email and SMS need separate affirmative consent. Missing consent means no permission. Global do-not-contact wins for both transactional and engagement messages.
-- Check current consent immediately before every send. Never revive suppressed messages automatically. Already accepted messages cannot be recalled.
-- accepted means the provider accepted a message; delivered is a later receipt. An unknown result is reconciling. Resolve unknown results before deciding to send again.
-- now >= expiresAt is expired. Eligible time is the latest of schedule, retry time, quiet-hours end and quota reset. Expire if that time reaches the deadline.
-- Engagement quiet hours: 21:00 inclusive to 08:00 exclusive, in the user's time zone. Cap: two accepted engagement messages per user per local calendar day, across all channels and campaigns. Transactional messages bypass only these two limits.
-- Count acceptedAt, including acceptance recovered later. Failed attempts and duplicate receipts never add quota. Reconcile earlier uncertain acceptances before letting another engagement message use the remaining quota.
-- For pending sends, primary reason order: global do-not-contact, missing channel consent, expiry, holdout, quiet hours, frequency cap, schedule, eligible. Accepted messages keep historical facts.
-- Experiment buckets use the supplied SHA-256 helper and user ID plus experiment ID. Golden values can be generated from this published algorithm; 0–19 holdout, 20–59 A, 60–99 B. The service snapshot and retried content remain unchanged.
-- Callback IDs identify events; provider sequence orders statuses for each provider message. A later sequence may correct a status. Same sequence/different content is a conflict.
-- Demo identities: viewer-demo can read; operator-demo can request a retry. Trust the middleware identity, never a role in a JSON body. Manual requests retain the original attempt budget, key and schedule.
-- Do not manually resend accepted, delivered, expired, suppressed, held_out, permanently failed or budget-exhausted messages. Temporary failures with remaining budget may be scheduled. Unknown outcomes may be looked up even when no sends remain.
-- A preview is a read-only snapshot. Its totals use unique users; counts are grouped by decision action. It must report unimplemented policies and must not grant future permission.
+All `/api/*` requests use `X-Actor-Id`: `customer` (Alex), `pro-1` (Jordan), `pro-2` (Sam), or `support` (Nearby Support). These are trusted demo identities, not real authentication. A request must still be authorized for the chosen identity and conversation. Never accept a message's sender from the request body.
 
-## Provider protocol
+Initial state: one empty `support-thread` with participants `customer` and `support`. Professionals have no conversations. SQLite persists across restart. There are no seeded messages or automatic replies.
 
-POST /send with key, userId, channel and body returns a normalized result:
-accepted (with message), temporary_failure, permanent_failure or unknown.
+| Method / route | Body → response |
+| --- | --- |
+| `GET /health` | `{ok:true, exercise:"chat-v2"}` |
+| `GET /api/state` | `{person, people, conversations}` — only the current actor's conversations |
+| `GET /api/conversations/:id/messages` | `{messages}` — oldest first |
+| `POST /api/conversations/:id/messages` | `{text}` → `{message}` (201) |
+| `POST /api/dev/fault` | `{mode:"none"\|"before-save"\|"after-save"}` — one-shot fault for current actor |
+| `POST /api/dev/reset` | `{}` → `{ok:true}` — resets chat data and faults; demo control only |
 
-GET /lookup?key=... is strongly consistent and returns the accepted message or null.
-Same key and same payload produces at most one provider message; a conflicting payload is rejected.
+`Conversation`: `{id, participantIds, createdAt}`.
 
-At most three send calls per intention. After the first and second temporary failures, retry after 60 and 120 seconds. Lookups do not consume this budget. Do not send after withdrawal; querying a historical outcome is still allowed.
+`Message`: `{id, conversationId, senderId, text, createdAt}`.
 
-Fault modes: accepted, temporary_failure, permanent_failure, before_timeout, after_timeout, after_pause. The last mode accepts then pauses the response until POST /release, to test a process crash.
+Text is trimmed, nonempty and at most 4,000 characters. Invalid input returns 400; inaccessible conversations return 404. Errors are JSON `{error: string}`. Unknown routes return 404.
 
-Fixtures use ordinary America/Los_Angeles dates, not a DST transition. All stored timestamps are ISO UTC. One worker runs serially; distributed workers and arbitrary concurrent revocation races are out of scope.
+`before-save` returns 503 without storing a message. `after-save` stores it, then returns 503 instead of confirmation. Both consume the fault once. The starter deliberately does not provide deduplication or a Retry action.
 
-## HTTP routes
+## Suggested extension conventions
 
-JSON bodies. Read routes need no login; retry routes read x-api-key. The fixed tokens and /dev routes are local exercise tools, not a production auth design.
+Use these shapes if helpful. Equivalent implementations are valid; document changed routes or shapes so the reviewer can adapt their checks. The task descriptions define behavior, not a required implementation strategy.
 
-| Method | Path | Input |
-| --- | --- | --- |
-| GET | /health | clock and unsupported policies |
-| GET | /messages | message list |
-| GET | /messages/:id | message, attempts, receipts, audit |
-| GET | /users | fixture users |
-| GET | /audit | audit history |
-| POST | /events | id, type, jobId |
-| POST | /consent | userId and any of email, sms, dnc (booleans) |
-| POST | /tick | {} |
-| POST | /clock | now (ISO UTC, forward only; reset to move back) |
-| POST | /receipts | id, providerId, sequence, status |
-| POST | /preview | users, optional scheduledAt and experimentId |
-| POST | /messages/:id/retry | requestId; header x-api-key |
-| POST | /dev/reset | optional fixture: baseline or T1–T10 |
-| POST | /dev/message | message fields to seed a scenario |
-| POST | /dev/user | user fields |
-| POST | /dev/job | id, customerId, providers, service |
+| Task | Convention |
+| --- | --- |
+| T1 | Add `image: {name, dataUrl}` to message create/read; data URL contains persisted PNG/JPEG/WebP bytes, max 2 MiB decoded. You may instead use a file-upload endpoint. Text is optional when an image is present. |
+| T2 | `POST /api/conversations {recipientId}` → `{conversation}`. Return the existing pair conversation if already created. |
+| T3 | `POST /api/messages/:id/recall {}` → `{message}`. A recalled message has `recalled:true`, empty `text` and no image payload. Recall has no time limit. |
+| T4 | Add `unreadCount` to each conversation in state. `POST /api/conversations/:id/read {throughMessageId}` records the last message actually viewed by this actor. |
+| T5 | Accept `replyToId` on create; return `replyTo:{id,text,image?,recalled?}` on read. Derive the quote from its source message so recall can update it. |
+| T6 | Local storage or server storage is fine. Key drafts by actor and conversation. No required API. Only text drafts are required. |
+| T7 | Accept `clientMessageId` for a send intent and reuse it on retries. A fresh intentional send uses a new ID. A retry returns the existing message; conflicting content for the same intent is rejected. Keep the fault controls working. |
+| T8 | `GET /api/conversations/:id/messages?q=...` returns literal, case-insensitive text matches in that conversation. The normal endpoint still returns history for jumping to a result. |
+| T9 | `POST /api/people/:id/block {blocked:true\|false}`. The customer controls their own block list. A blocked professional's sends return 403. |
+| T10 | `POST /api/conversations/:id/escalate {}` → `{conversation}`. Customer invites `support` into that conversation; repeated invitations are harmless. |
 
-Events: request.created → customer email now; provider.matched → professionals SMS now; job.completed → customer engagement email 24 hours later.
+## Shared behavior
 
-Provider control routes (port 4311): POST /fault with userId and modes; GET /records; POST /release. Reset and clock are synchronized by the application tools.
-
-## Useful commands
-
-```sh
-npm run cli -- reset T5
-npm run cli -- fault '{"userId":"customer","modes":["after_timeout"]}'
-npm run cli -- tick
-npm run cli -- clock 2026-10-15T17:01:00Z
-npm run cli -- tick
-npm run cli -- show m1
-npm run cli -- records
-```
-
-Other commands: consent JSON, receipt JSON, preview JSON, retry ID REQUEST_ID.
-Set LAB_KEY=viewer-demo to exercise viewer permission checks.
-
-## Integration checks
-
-If you implement related tasks, also verify: replayed matches; revoke then retry; accepted timeout then restart/revoke; quiet hours beyond expiry; cross-channel quota with holdout; preview then revoke; out-of-order receipts; direct viewer calls.
-
-Build your own tests and verification tools. Final review checks the stated behavior and interactions among the tasks you claim to complete. Internal implementation choices are yours.
-
-## Local web workbench
-
-GET / serves the workbench. GET /dev/state returns the current clock, messages, users, jobs, journeys and audit entries. Browser actions use the same routes above.
-
-For same-origin provider controls, GET /dev/provider/records, POST /dev/provider/fault and POST /dev/provider/release forward only these fixed simulator routes. No delivery policy is implemented in the UI.
-
-The marketplace demo uses POST /dev/journey with action `submit`, `match` (plus `professionals`, an array of recipient IDs), or `complete`. It advances the single demo request job-1 through submitted → matched → completed, persisting the history and calling the same event-ingestion engine. Each action gets a fresh event ID. Use POST /events to replay those IDs and exercise deduplication; direct events do not advance the demo journey. Reset clears the journey too. Matching selects notification recipients; job acceptance, booking and matching algorithms are out of scope. Customer / Professional / Platform are simulator perspectives, not authorization boundaries. A professional is a home-service worker; the provider protocol above describes the separate messaging gateway.
+- Persist chat content, conversation membership, recall, read status and blocking when implementing those tasks. Drafts may stay browser-local.
+- Identity and conversation boundaries apply to messages, search results, quotes, unread state and drafts. The platform has no special access to private messages until invited.
+- Recall removes original content from subsequent API responses, including image payloads, quotes and search results when those features are implemented. Already seen or downloaded content cannot be undone.
+- A recall marker remains in history. For unread counting, it occupies the same position as the original message; reading the conversation clears it normally.
+- Block stops new inbound messages from that professional; it does not erase history, block support, or replay rejected messages after unblocking.
+- T6, T9 and T10 depend on T2. Other tasks can use the existing customer–support conversation. Cross-feature checks apply only to features you implement together.

@@ -1,52 +1,171 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nearby · Marketplace simulator</title><link rel="stylesheet" href="/workbench/style.css"><script defer src="/workbench/app.js"></script></head>
-<body>
-<header><a class="brand" href="/">n<span>nearby <small data-zh="服务平台模拟器">/ marketplace</small></span></a><div class="header-actions"><span id="connection" role="status">Connecting…</span><button id="language" type="button">中文</button></div></header>
-<div class="shell">
-<main>
-<section class="page-intro"><div><h1 data-zh="一条维修需求，三个视角">One service request, three perspectives</h1><p data-zh="Alex 需要维修水管。平台选择服务人员，并在需求提交、匹配和完成时发送通知。">Alex needs a plumber. Nearby selects professionals and sends updates when the request is submitted, matched and completed.</p><p class="hint" data-zh="三个视角共用同一份数据。这是待完善的系统，页面展示实际行为，可能不符合预期。">All three views share one dataset. This system is unfinished; the UI shows actual behavior, which may differ from the requirements.</p></div><button id="refresh" data-zh="刷新数据">Refresh data</button></section>
-<section class="session-summary" id="session-summary" aria-live="polite"></section>
-<nav class="role-nav" aria-label="Perspectives"><button data-view="customer" aria-pressed="true"><strong data-zh="客户">Customer</strong><span>Alex</span></button><button data-view="professional" aria-pressed="false"><strong data-zh="服务人员">Professional</strong><span data-zh="切换 Jordan / Sam">Switch Jordan / Sam</span></button><button data-view="platform" aria-pressed="false"><strong data-zh="平台">Platform</strong><span data-zh="匹配、发送与客服">Matching, messaging &amp; support</span></button></nav>
-<details class="operator-guide" id="operator-guide"><summary data-zh="操作指南 · 1 分钟上手">Quick guide · get started in one minute</summary><div class="guide-content">
-<section><h2 data-zh="先体验一封确认邮件">Start with one confirmation email</h2><ol><li data-zh="如果页面提示保留了上次模拟，可点「从头开始」。客户提交需求后，只会生成待发邮件，不会立即发送。">If a previous simulation is saved, choose “Start over”. Submitting the customer request queues an email; it does not send it.</li>
-<li data-zh="客户视角：Alex 提交维修需求。平台视角会出现需求和待发确认邮件。">Customer: submit Alex’s request. The platform shows the request and a queued confirmation email.</li>
-
-<li data-zh="平台点击「执行发送」，再打开消息、点击「更新送达状态」并提交 delivered 回执。切换客户或服务人员视角，查看各自收件箱。">Platform: send queued messages, open a message, then update its delivery status with a delivered receipt. Switch perspectives to inspect each person’s inbox.</li>
-<li data-zh="之后再体验匹配：平台勾选 Jordan、Sam 中的一人或两人，点击「确认匹配」。匹配只是选择要通知的服务人员，不代表他们已经接单。">Then try matching: in Platform, select Jordan, Sam or both and confirm the match. A match selects who to notify; it is not a booking or an accepted job.</li>
-<li data-zh="平台确认服务完成后，会生成次日回访邮件。可推进模拟时间、调整接收者授权、模拟发送故障，再观察实际结果。">After marking the service completed, a next-day follow-up is queued. Advance simulated time, change recipient preferences or simulate a send failure to inspect the result.</li>
-</ol><p class="guide-note" data-zh="界面展示当前后端的真实行为，起始代码可能缺少通知或错误发送。匹配结果与消息送达是两件事；收件箱只展示后端标为 delivered 的消息。">The UI reflects the current backend, which may omit notifications or send incorrectly. Matching and message delivery are separate; inboxes show only messages the backend marks delivered.</p></section>
-<section><h2 data-zh="几个必要概念">Useful distinctions</h2><dl>
-<dt data-zh="接收通知的同意（consent）">Consent to receive notifications</dt><dd data-zh="由收件人决定平台能否给自己发邮件或短信。关闭某个渠道并保存，就是撤回该渠道的同意；「停止所有通知」优先于两个渠道开关。与客服的操作权限无关。">The recipient decides whether Nearby may email or text them. Turning off a channel and saving withdraws consent. “Stop all notifications” overrides both channels. This is separate from staff access permissions.</dd>
-<dt data-zh="需求 / 订单">Service request / job</dt><dd data-zh="Alex 的一条水管维修需求，示例 ID 为 job-1。提交、匹配、完成就是这条需求的三种业务事件。">Alex’s plumbing request, identified as job-1. Submission, matching and completion are three business events for that request.</dd>
-<dt data-zh="服务人员">Professional</dt><dd data-zh="Jordan、Sam 是上门提供服务的人。在数据中由 job.providers 保存匹配名单。">Jordan and Sam do the home-service work. The matched list is stored in job.providers.</dd>
-<dt data-zh="消息供应商">Messaging gateway</dt><dd data-zh="负责发送短信或邮件的外部服务，本地用模拟器代替。供应商已接受不等于接收者已收到，需要后续送达回执。">The external email/SMS delivery service, replaced locally by a simulator. Acceptance does not mean delivery; a later receipt reports delivery.</dd>
-</dl></section><section><h2 data-zh="其他操作">Other controls</h2><ul>
-<li data-zh="客户和服务人员可在自己的视角修改授权；平台可预览活动、创建消息、模拟供应商故障，并在消息详情中请求客服重试。">Customers and professionals manage their own preferences. The platform previews campaigns, creates messages, simulates gateway faults and requests support retries from message details.</li>
-<li data-zh="「模拟时间与数据管理」中的时钟不会随现实时间前进；推进后还需执行发送。重置会清空需求流程、消息、授权修改和供应商记录。刷新或重启不会清空数据。">The clock under “Simulated time &amp; data” does not advance automatically; dispatch after advancing it. Reset clears the request journey, messages, preference changes and gateway records. Refreshing or restarting preserves data.</li>
-<li data-zh="平台的「高级调试」可重放原始事件、编辑样例；「详细记录」显示实际调用与响应。不发送真实短信或邮件。">Platform “Advanced debugging” supports raw event replay and fixture editing. Detailed records show actual calls and responses. No real email or SMS is sent.</li>
-</ul></section></div></details>
-<div id="notice" role="status" aria-live="polite" hidden></div>
-<details class="simulation"><summary data-zh="模拟时间与数据管理">Simulated time &amp; data</summary><section class="clock-bar"><div><span class="eyebrow" data-zh="模拟时钟 · UTC">SIMULATED CLOCK · UTC</span><strong id="clock">—</strong><small id="local-clock"></small></div><div class="clock-actions"><button data-advance="60" data-zh="+1 分钟">+1 min</button><button data-advance="3600" data-zh="+1 小时">+1 hour</button><button data-advance="86400" data-zh="+1 天">+1 day</button></div></section>
-<details class="clock-edit"><summary data-zh="设置精确时间">Set exact time</summary><form id="clock-form" class="inline"><label><span data-zh="UTC 时间（ISO）">UTC time (ISO)</span><input name="now" id="clock-input" required placeholder="2026-10-15T17:00:00Z"></label><button data-zh="设置时钟">Set clock</button></form></details>
-<button id="load-scene" data-zh="重置示例数据">Reset sample data</button><p class="hint" data-zh="推进时间不会自动发送消息。更改时间后，点击「执行发送」。">Advancing time does not send messages. Click “Send queued messages” afterward.</p></details><section id="view-customer" class="perspective"><div class="persona-heading"><span class="avatar">A</span><div><h2 data-zh="你好，Alex">Hello, Alex</h2><p data-zh="你正在扮演客户 Alex：提交需求，并决定平台能否联系你。">You are acting as Alex: submit a request and decide how Nearby may contact you.</p></div></div><div class="persona-grid"><div><section class="panel journey-card" id="customer-request"></section><section class="panel preferences"><h2 data-zh="我允许接收哪些通知">Notifications I agree to receive</h2><div id="customer-preferences"></div></section></div><section class="panel inbox"><h2 data-zh="我的收件箱">My inbox</h2><p class="hint" data-zh="模拟邮件和短信收件箱，只显示已送达消息。">Simulated email and SMS inbox. Only delivered messages appear here.</p><div id="customer-inbox"></div></section></div></section>
-<section id="view-professional" class="perspective" hidden><div class="persona-heading"><span class="avatar professional-avatar">P</span><div><h2 data-zh="服务人员工作台">Professional workspace</h2><label for="professional-picker" data-zh="当前服务人员">Current professional</label><select id="professional-picker"></select></div></div><div class="persona-grid"><div><section class="panel journey-card" id="professional-request"></section><section class="panel preferences"><h2 data-zh="我允许接收哪些通知">Notifications I agree to receive</h2><div id="professional-preferences"></div></section></div><section class="panel inbox"><h2 data-zh="我的收件箱">My inbox</h2><p class="hint" data-zh="匹配到需求不代表已经收到短信。这里显示当前服务人员已送达的消息。">Being matched does not mean an SMS arrived. This inbox shows delivered messages for the selected professional.</p><div id="professional-inbox"></div></section></div></section>
-<section id="view-platform" class="perspective" hidden><section class="panel journey-card" id="platform-request"></section><details class="advanced-tools"><summary data-zh="高级调试：业务事件、原始授权和样例数据">Advanced debugging: events, preferences and fixtures</summary><p data-zh="用下方入口重放事件或编辑样例，然后在消息列表检查结果。">Use these controls to replay events or edit fixtures, then inspect the message list.</p><div id="debug-buttons"></div></details>
-<nav class="control-tabs app-nav" aria-label="Message tools"><button data-panel="overview" data-zh="消息记录">Message log</button><button data-panel="events" data-debug data-zh="原始事件">Raw events</button><button data-panel="compose" data-zh="自定义消息">Custom messages</button><button data-panel="consent" data-debug data-zh="所有用户授权">All preferences</button><button data-panel="preview" data-zh="活动预览">Campaign preview</button><button data-panel="provider" data-zh="消息供应商故障">Gateway faults</button><button data-panel="receipts" data-context hidden data-zh="更新送达状态">Delivery update</button><button data-panel="retry" data-context hidden data-zh="客服重试">Support retry</button></nav>
-<div class="work-grid"><section class="panel controls"><div class="panel-heading"><h2 id="control-title">Business notifications</h2></div>
-
-<div class="control-body" id="panel-events"><p class="hint" data-zh="高级入口直接调用消息接口；不会推进上方需求流程。可填入流程记录中的事件 ID 重放。">This calls the messaging API directly without advancing the request journey. Copy an event ID from the journey history to replay it.</p><form id="event-form"><label><span data-zh="发生了什么？">What happened?</span><select name="type" id="event-type"><option value="request.created" data-zh="客户提交需求 → 确认邮件">Customer requests service → confirmation email</option><option value="provider.matched" data-zh="匹配到服务人员 → 短信通知">Professionals matched → SMS notification</option><option value="job.completed" data-zh="服务完成 → 次日回访邮件">Job completed → next-day follow-up email</option></select></label><label data-zh-label="服务订单">Service request<select name="jobId" id="event-job"><option value="job-1">Alex · Plumbing (job-1)</option></select></label><button class="primary" data-zh="提交 / 重放事件">Submit / replay event</button><details><summary data-zh="事件标识与重放">Event identity &amp; replay</summary><p class="hint" data-zh="再次点击生成按钮会重放相同事件。点击「新 ID」可模拟另一条事件。">Submitting again replays the same event. Use “New ID” to simulate a different event.</p><label><span data-zh="事件 ID">Event ID</span><div class="input-row"><input name="id" id="event-id" required><button type="button" id="new-event" data-zh="新 ID">New ID</button></div></label></details></form><details><summary data-zh="编辑订单样例">Edit sample job</summary><form id="job-form"><label>Job ID<input name="id" value="job-1" required></label><label data-zh-label="客户 ID">Customer ID<input name="customerId" value="customer" required></label><label data-zh-label="服务人员 ID（逗号分隔）">Professional IDs (comma separated)<input name="providers" value="pro-1,pro-2" required></label><label data-zh-label="服务名称">Service<input name="service" value="Plumbing"></label><button data-zh="保存订单样例">Save sample job</button></form></details></div>
-<div class="control-body" id="panel-compose" hidden><p class="hint" data-zh="直接创建待发送消息，用于观察调度、限额和实验。不会自动发送。">Seed pending messages to explore scheduling, limits and experiments. This does not dispatch.</p><form id="message-form"><label data-zh-label="接收者">Recipient<select name="userId" class="user-select"></select></label><div class="two"><label data-zh-label="渠道">Channel<select name="channel"><option>email</option><option>sms</option></select></label><label data-zh-label="用途">Purpose<select name="purpose"><option>transactional</option><option>engagement</option></select></label></div><label data-zh-label="计划时间（UTC ISO，留空为当前时间）">Schedule (UTC ISO; blank = now)<input name="scheduledAt" placeholder="2026-10-15T17:10:00Z"></label><label data-zh-label="过期时间（UTC ISO，可选）">Expiry (UTC ISO; optional)<input name="expiresAt" placeholder="2026-10-15T18:00:00Z"></label><label data-zh-label="实验 ID（可选）">Experiment ID (optional)<input name="experimentId" placeholder="followup-v1"></label><label data-zh-label="消息内容">Body<textarea name="body" rows="2">Your Plumbing request is confirmed.</textarea></label><label data-zh-label="数量">Count<input name="count" type="number" min="1" max="10" value="1" required></label><button class="primary" data-zh="创建待发送消息">Create pending messages</button></form></div>
-<div class="control-body" id="panel-consent" hidden><p class="hint" data-zh="这里的同意由接收者给出：能否发邮件、短信，或停止所有通知。保存后再发送，观察排队消息是否被拦截。">Recipients choose whether Nearby may email or text them, or stop all notifications. Save a change, then dispatch to inspect queued messages.</p><div id="users"></div></div>
-<div class="control-body" id="panel-provider" hidden><p class="hint" data-zh="设置接下来发送时的供应商响应。结果按列表顺序消耗。">Choose provider outcomes for upcoming sends, consumed in order.</p><form id="fault-form"><label data-zh-label="用户">User<select name="userId" class="user-select"></select></label><label data-zh-label="故障预设">Preset<select id="fault-preset"><option value="accepted">Accepted · 正常接受</option><option value="temporary_failure,accepted">Temporary failure → accepted · 临时失败</option><option value="permanent_failure">Permanent failure · 永久失败</option><option value="before_timeout,accepted">Timeout before acceptance · 接受前超时</option><option value="after_timeout">Timeout after acceptance · 接受后超时</option><option value="after_pause">Accept and pause response · 接受后挂起</option></select></label><label data-zh-label="响应序列（逗号分隔）">Outcome sequence (comma separated)<input name="modes" id="fault-modes" value="accepted" required></label><button class="primary" data-zh="应用故障计划">Apply fault plan</button><button type="button" id="release" data-zh="释放挂起的响应">Release paused responses</button></form><p class="hint" data-zh="要观察进程重启，停止并重新启动 npm run dev；本地数据会保留。">To observe a process restart, stop and restart npm run dev. Local data persists.</p></div>
-<div class="control-body" id="panel-receipts" hidden><p class="hint" data-zh="选择消息会填入供应商 ID。重复提交回执或修改序号，可观察状态更新。">Selecting a message fills its provider ID. Replay callbacks or change their sequence to observe status projection.</p><form id="receipt-form"><label data-zh-label="回执 ID">Receipt ID<div class="input-row"><input name="id" id="receipt-id" required><button type="button" id="new-receipt" data-zh="新 ID">New ID</button></div></label><label data-zh-label="供应商消息 ID">Provider message ID<input name="providerId" id="receipt-provider" required></label><div class="two"><label data-zh-label="序号">Sequence<input name="sequence" type="number" min="1" value="1" required></label><label data-zh-label="状态">Status<select name="status"><option>delivered</option><option>accepted</option><option>failed</option></select></label></div><button class="primary" data-zh="提交回执 / 重放">Submit / replay receipt</button></form></div>
-<div class="control-body" id="panel-preview" hidden><form id="preview-form"><label data-zh-label="用户 ID（逗号分隔，可重复）">User IDs (comma separated; duplicates allowed)<input name="users" value="customer,pro-1,pro-2" required></label><label data-zh-label="计划时间（UTC ISO，可选）">Schedule (UTC ISO; optional)<input name="scheduledAt"></label><label data-zh-label="实验 ID（可选）">Experiment ID (optional)<input name="experimentId" value="followup-v1"></label><button class="primary" data-zh="预览活动">Preview campaign</button></form><div id="preview-result" aria-live="polite"></div></div>
-<div class="control-body" id="panel-retry" hidden><p class="hint" data-zh="选择右侧消息，切换身份并请求重试；随后执行发送，观察实际行为。">Select a message, choose an identity and request a retry. Then dispatch to observe the actual behavior.</p><form id="retry-form"><label data-zh-label="消息 ID">Message ID<input name="id" id="retry-message" required></label><label data-zh-label="身份">Identity<select name="actor"><option value="operator-demo">operator-demo</option><option value="viewer-demo">viewer-demo</option></select></label><label data-zh-label="请求 ID">Request ID<div class="input-row"><input name="requestId" id="retry-request" required><button type="button" id="new-retry" data-zh="新 ID">New ID</button></div></label><button class="primary" data-zh="请求重试 / 重放">Request / replay retry</button></form></div>
-</section>
-<section class="panel message-panel"><div class="panel-heading"><div><h2 data-zh="消息列表">Messages</h2><p class="hint" data-zh="生成消息后，点击右侧按钮发送。">Create messages, then send them with this button.</p></div><button class="primary" id="dispatch" data-zh="执行发送">Send queued messages</button></div><section class="stats" aria-label="Current state"><div><span data-zh="全部消息">All messages</span><strong id="n-messages">0</strong></div><div><span data-zh="待处理 / 核实中">Pending / reconciling</span><strong id="n-pending">0</strong></div><div><span data-zh="供应商已接受">Provider accepted</span><strong id="n-accepted">0</strong></div><div><span data-zh="发送调用次数">Send calls</span><strong id="n-calls">0</strong></div></section>
-<div class="table-scroll"><table><thead><tr><th data-zh="接收者 / 渠道">Recipient / channel</th><th data-zh="状态 / 原因">Status / reason</th><th data-zh="尝试">Tries</th><th data-zh="发送时间">Timing</th></tr></thead><tbody id="messages"></tbody></table></div><div class="empty" id="message-empty" data-zh="暂无消息。可先切换客户视角提交维修需求。">No messages yet. Switch to Customer and submit the plumbing request.</div><div id="message-detail" hidden></div></section></div>
-<details class="panel evidence"><summary data-zh="详细记录：供应商、审计和操作日志">Detailed records: provider, audit &amp; requests</summary><nav class="evidence-tabs" aria-label="Observation logs"><button data-evidence="provider" data-zh="供应商">Provider</button><button data-evidence="audit" data-zh="审计">Audit</button><button data-evidence="requests" data-zh="操作记录">Requests</button></nav><div id="evidence-content"></div></details>
-</section>
-<footer data-zh="本地演示环境 · 不发送真实邮件或短信。">Local demo · no real email or SMS is sent.</footer>
-</main></div>
-<dialog id="reset-dialog"><h2 data-zh="从头开始这次模拟？">Start this simulation over?</h2><p data-zh="清空之前的需求流程和消息，恢复所有示例账号的通知开关，并重置时钟。代码改动不受影响。">Clear the request journey and messages, restore sample notification settings and reset the clock. Code changes are kept.</p><div class="dialog-actions"><button id="cancel-reset" data-zh="取消">Cancel</button><button class="primary" id="confirm-reset" data-zh="重置数据">Reset data</button></div></dialog>
-</body></html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Nearby · Messages</title>
+    <link rel="stylesheet" href="/style.css" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='9' fill='%23145e54'/%3E%3Ctext x='8' y='24' fill='white' font-size='26'%3En%3C/text%3E%3C/svg%3E"
+    />
+  </head>
+  <body>
+    <div class="shell">
+      <header>
+        <a class="brand" href="/"
+          ><span class="mark">n</span>nearby
+          <span data-t="messages">messages</span></a
+        >
+        <div class="header-actions">
+          <span class="local" data-t="local">Local demo</span
+          ><button id="language" class="quiet">中文</button>
+        </div>
+      </header>
+      <section class="perspective" aria-label="Demo identity">
+        <div>
+          <span class="eyebrow" data-t="viewAs">VIEW AS</span>
+          <div class="role-switch">
+            <button data-role="customer" aria-pressed="true" data-t="customer">
+              Customer</button
+            ><button
+              data-role="professional"
+              aria-pressed="false"
+              data-t="professional"
+            >
+              Professional</button
+            ><button data-role="support" aria-pressed="false" data-t="platform">
+              Platform
+            </button>
+          </div>
+        </div>
+        <div class="identity">
+          <span id="identity-avatar" class="avatar"></span>
+          <div>
+            <strong id="identity-name"></strong
+            ><span id="identity-description"></span>
+          </div>
+          <select id="professional-select" aria-label="Professional">
+            <option value="pro-1">Jordan</option>
+            <option value="pro-2">Sam</option>
+          </select>
+        </div>
+      </section>
+      <details id="guide" class="guide" open>
+        <summary data-t="guide">Quick guide</summary>
+        <div class="guide-content">
+          <p data-t="story">
+            Alex needs help with a leaking kitchen sink. Jordan and Sam are
+            plumbers on Nearby; Nearby Support is the platform's customer
+            service team.
+          </p>
+          <ol>
+            <li data-t="step1">
+              As Customer, send a text message to Nearby Support below.
+            </li>
+            <li data-t="step2">
+              Switch to Platform to read it and reply. Switch back to Customer
+              to see the reply.
+            </li>
+            <li data-t="step3">
+              The Professional view switches between Jordan and Sam. They have
+              no conversations yet.
+            </li>
+          </ol>
+          <p class="muted" data-t="guideNote">
+            All views share one local server. Messages survive refresh and
+            restart. No real accounts or external messages.
+          </p>
+        </div>
+      </details>
+      <main class="workspace">
+        <aside class="sidebar">
+          <div class="sidebar-heading">
+            <h1 data-t="conversations">Conversations</h1>
+            <span id="conversation-count"></span>
+          </div>
+          <div id="conversation-list"></div>
+          <section class="directory">
+            <h2 data-t="people">People in this demo</h2>
+            <div id="people-list"></div>
+          </section>
+        </aside>
+        <section class="chat" aria-label="Conversation">
+          <div class="chat-heading">
+            <div>
+              <h2 id="chat-title"></h2>
+              <p id="chat-subtitle"></p>
+            </div>
+            <span id="connection" class="connection" role="status"></span>
+          </div>
+          <div
+            id="message-list"
+            class="message-list"
+            role="log"
+            aria-live="polite"
+            aria-label="Messages"
+          ></div>
+          <form id="composer">
+            <label class="sr-only" for="message-input" data-t="write"
+              >Write a message</label
+            ><textarea
+              id="message-input"
+              rows="2"
+              maxlength="4000"
+              placeholder="Write a message…"
+              required
+            ></textarea>
+            <div class="compose-actions">
+              <span data-t="textOnly"
+                >Text messages · Enter to send · Shift + Enter for a new
+                line</span
+              ><button id="send" type="submit" class="primary" data-t="send">
+                Send message
+              </button>
+            </div>
+            <p id="send-error" class="error" role="alert" hidden></p>
+          </form>
+        </section>
+      </main>
+      <footer>
+        <details class="simulation">
+          <summary data-t="simulation">Simulation controls</summary>
+          <div>
+            <label for="fault" data-t="nextSend"
+              >Next send from this identity</label
+            ><select id="fault">
+              <option value="none" data-t="normal">Normal connection</option>
+              <option value="before-save" data-t="before">
+                Fail before saving
+              </option>
+              <option value="after-save" data-t="after">
+                Save, then lose confirmation
+              </option></select
+            ><button id="arm" data-t="apply">Apply once</button
+            ><span id="fault-status" role="status"></span>
+            <p data-t="faultNote">
+              A connection can fail before a message arrives, or after it is
+              saved but before the sender gets confirmation. This affects only
+              the next send from the current identity.
+            </p>
+          </div>
+        </details>
+        <button id="reset" class="quiet" data-t="reset">Reset demo</button>
+      </footer>
+      <dialog id="reset-dialog">
+        <h2 data-t="resetTitle">Start a fresh demo?</h2>
+        <p data-t="resetDescription">
+          This deletes all chat messages and restores the single empty
+          conversation with Nearby Support.
+        </p>
+        <div class="dialog-actions">
+          <button id="cancel-reset" data-t="cancel">Cancel</button
+          ><button id="confirm-reset" class="primary" data-t="reset">
+            Reset demo
+          </button>
+        </div>
+      </dialog>
+    </div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

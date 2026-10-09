@@ -4,6 +4,10 @@ Completed:
 Partially completed:
 Not attempted:
 
+## Try it in the UI
+
+Steps to demonstrate the completed features:
+
 ## Verification
 
 Commands to run your tests and the results you observed:

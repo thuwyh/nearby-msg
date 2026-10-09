@@ -1,111 +1,125 @@
-import { createServer } from 'node:http';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
-import { Store } from './store.ts';
-import { HttpProvider } from './provider.ts';
-import { context,ingest,tick } from './engine.ts';
-import { receive } from './tasks/t7-receipts.ts';
-import { preview } from './tasks/t9-preview.ts';
-import { retry } from './tasks/t10-support.ts';
-import { fixture,names } from './fixtures.ts';
-import { draft } from './helpers.ts';
-import { actOnRequest } from './journey.ts';
-import type { Event,Message,Receipt,User } from './types.ts';
+import { createServer } from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { Store } from "./store.ts";
+import { Chat, HttpError } from "./chat.ts";
+import type { Fault } from "./types.ts";
 
-const store=new Store(process.env.LAB_DB??resolve('.data/lab.sqlite'));
-if(!store.all<User>('user').length)store.seed();
-const providerUrl=process.env.PROVIDER_URL??'http://127.0.0.1:4311';
-const ctx=context(store,new HttpProvider(providerUrl));
-const assets:Record<string,[string,string]>={
-  '/':['index.html','text/html; charset=utf-8'],
-  '/workbench/style.css':['style.css','text/css; charset=utf-8'],
-  '/workbench/app.js':['app.js','text/javascript; charset=utf-8']
+const store = new Store(process.env.CHAT_DB ?? ".data/chat-v2.sqlite");
+const chat = new Chat(store);
+const faults = new Map<string, Fault>();
+const assets: Record<string, [string, string]> = {
+  "/": ["index.html", "text/html; charset=utf-8"],
+  "/app.js": ["app.js", "text/javascript; charset=utf-8"],
+  "/style.css": ["style.css", "text/css; charset=utf-8"],
 };
-const string=(v:unknown):string=>{if(typeof v!=='string'||!v)throw new Error('Expected nonempty string');return v;};
-const date=(v:unknown):string=>{const d=new Date(string(v));if(!Number.isFinite(d.getTime()))throw new Error('Invalid date');return d.toISOString();};
-async function control(path:string,body:unknown):Promise<void> {
-  const r=await fetch(providerUrl+path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body)});
-  if(!r.ok)throw new Error('Simulator unavailable');
-}
-let serial=Promise.resolve();
-const server=createServer((req,res)=>{
-  const asset=assets[new URL(req.url??'/', 'http://localhost').pathname];
-  if(req.method==='GET'&&asset){
-    res.writeHead(200,{'content-type':asset[1],'cache-control':'no-store'});
-    res.end(readFileSync(new URL('../tools/workbench/'+asset[0],import.meta.url)));return;
-  }
-  const job=async()=>{
-    let status=200;
-    try {
-      let raw='';for await(const chunk of req){raw+=chunk;if(raw.length>200000)throw new Error('Body too large');}
-      const b=(raw?JSON.parse(raw):{}) as Record<string,unknown>;
-      const u=new URL(req.url??'/', 'http://localhost'),path=u.pathname;
-      let result:unknown;
-      if(req.method==='GET'&&path==='/health')result={ok:true,now:store.now(),unsupported:ctx.unsupported()};
-      else if(req.method==='GET'&&path==='/dev/state')result={now:store.now(),messages:store.messages(),users:store.all<User>('user'),jobs:store.all('job'),journeys:store.all('journey'),audit:store.all('audit')};
-      else if(req.method==='POST'&&path==='/dev/journey')result=actOnRequest(string(b.action),b.professionals,ctx);
-      // Local workbench only: fixed provider routes, never an arbitrary URL proxy.
-      else if((req.method==='GET'&&path==='/dev/provider/records')||(req.method==='POST'&&['/dev/provider/fault','/dev/provider/release'].includes(path))){
-        if(path.endsWith('/fault')){
-          string(b.userId);
-          const modes=['accepted','temporary_failure','permanent_failure','before_timeout','after_timeout','after_pause'];
-          if(!Array.isArray(b.modes)||!b.modes.every(mode=>typeof mode==='string'&&modes.includes(mode)))throw new Error('Invalid provider fault sequence');
-        }
-        const r=await fetch(providerUrl+path.slice('/dev/provider'.length),{method:req.method,headers:{'content-type':'application/json'},body:req.method==='POST'?JSON.stringify(b):undefined,signal:AbortSignal.timeout(5000)});
-        status=r.status;result=await r.json();
-      }
-      else if(req.method==='GET'&&path==='/messages')result=store.messages();
-      else if(req.method==='GET'&&path.startsWith('/messages/')){
-        const id=decodeURIComponent(path.slice(10));const message=store.get<Message>('message',id);
-        if(!message){status=404;result={error:'Unknown message'};}
-        else result={message,attempts:store.all<Record<string,unknown>>('attempt').filter(a=>a.messageId===id),receipts:store.all<Receipt>('receipt').filter(r=>r.providerId===message.providerId),audit:store.all('audit')};
-      }
-      else if(req.method==='GET'&&path==='/users')result=store.all<User>('user');
-      else if(req.method==='GET'&&path==='/audit')result=store.all('audit');
-      else if(req.method==='GET'&&path==='/fixtures')result=names;
-      else if(req.method==='POST'&&path==='/events'){
-        if(!['request.created','provider.matched','job.completed'].includes(String(b.type)))throw new Error('Unsupported event');
-        result=ingest({id:string(b.id),type:b.type as Event['type'],jobId:string(b.jobId)},ctx);
-      }
-      else if(req.method==='POST'&&path==='/consent'){
-        const changes:Partial<Pick<User,'email'|'sms'|'dnc'>>={};
-        for(const key of ['email','sms','dnc'] as const)if(b[key]!==undefined){if(typeof b[key]!=='boolean')throw new Error('Expected boolean');changes[key]=b[key];}
-        result=store.consent(string(b.userId),changes,'preferences');
-      }
-      else if(req.method==='POST'&&path==='/tick')result=await tick(ctx);
-      else if(req.method==='POST'&&path==='/clock'){
-        const now=date(b.now);if(now<store.now())throw new Error('Clock cannot move backwards; reset first');
-        store.clock(now);await control('/clock',{now});result={now};
-      }
-      else if(req.method==='POST'&&path==='/receipts'){
-        if(!Number.isSafeInteger(b.sequence)||Number(b.sequence)<1||!['accepted','delivered','failed'].includes(String(b.status)))throw new Error('Invalid receipt');
-        receive({id:string(b.id),providerId:string(b.providerId),sequence:Number(b.sequence),status:b.status as Receipt['status']},store);result={ok:true};
-      }
-      else if(req.method==='POST'&&path==='/preview'){
-        if(!Array.isArray(b.users)||!b.users.every(v=>typeof v==='string'))throw new Error('Expected user ID list');
-        result=preview({users:b.users,scheduledAt:b.scheduledAt?date(b.scheduledAt):store.now(),experimentId:b.experimentId==null?null:string(b.experimentId)},ctx);
-      }
-      else if(req.method==='POST'&&path.match(/^\/messages\/[^/]+\/retry$/)){
-        const token=req.headers['x-api-key'];const actor=token==='operator-demo'?'operator':token==='viewer-demo'?'viewer':null;
-        if(!actor){status=401;result={error:'Use a supplied demo identity'};}
-        else result=retry(decodeURIComponent(path.split('/')[2]),actor,string(b.requestId),store);
-      }
-      // Local-only fixture endpoints; not a production authentication surface.
-      else if(req.method==='POST'&&path==='/dev/reset'){fixture(String(b.fixture??'baseline'),store);await control('/reset',{});await control('/clock',{now:store.now()});result={ok:true};}
-      else if(req.method==='POST'&&path==='/dev/message'){const m=draft(b as Partial<Message>,store.now());store.user(m.userId);store.save(m);result=m;}
-      else if(req.method==='POST'&&path==='/dev/job'){store.put('job',string(b.id),b);result=b;}
-      else if(req.method==='POST'&&path==='/dev/user'){const user={id:string(b.id),name:String(b.name??b.id),zone:'America/Los_Angeles',email:true,sms:true,dnc:false,revision:1,...b} as User;store.put('user',user.id,user);result=user;}
-      else {status=404;result={error:'Unknown route'};}
-      res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify(result));
-    } catch(error) {
-      const message=error instanceof Error?error.message:'Request failed';
-      status=message.startsWith('Forbidden')?403:message.includes('Conflict')?409:400;
-      res.writeHead(status,{'content-type':'application/json'});res.end(JSON.stringify({error:message}));
-    }
+const server = createServer(async (req, res) => {
+  const reply = (status: number, data: unknown) => {
+    res.writeHead(status, {
+      "Content-Type": "application/json",
+      "Cache-Control": "no-store",
+    });
+    res.end(JSON.stringify(data));
   };
-  serial=serial.then(job,job);
+  try {
+    const url = new URL(req.url ?? "/", "http://localhost");
+    if (req.method === "GET" && assets[url.pathname]) {
+      const [file, type] = assets[url.pathname];
+      const content = await readFile(
+        fileURLToPath(new URL("../tools/workbench/" + file, import.meta.url)),
+      );
+      res.writeHead(200, {
+        "Content-Type": type,
+        "Cache-Control": "no-store",
+        "X-Content-Type-Options": "nosniff",
+      });
+      res.end(content);
+      return;
+    }
+    if (req.method === "GET" && url.pathname === "/health") {
+      reply(200, { ok: true, exercise: "chat-v2" });
+      return;
+    }
+    const actor =
+      typeof req.headers["x-actor-id"] === "string"
+        ? req.headers["x-actor-id"]
+        : "";
+    chat.person(actor);
+    let body: any = {};
+    if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method ?? "")) {
+      let raw = "";
+      for await (const chunk of req) {
+        raw += chunk;
+        if (Buffer.byteLength(raw) > 8 * 1024 * 1024)
+          throw new HttpError(413, "Request too large.");
+      }
+      try {
+        body = raw ? JSON.parse(raw) : {};
+      } catch {
+        throw new HttpError(400, "Invalid JSON.");
+      }
+      if (!body || Array.isArray(body) || typeof body !== "object")
+        throw new HttpError(400, "Expected a JSON object.");
+    }
+    if (req.method === "GET" && url.pathname === "/api/state") {
+      reply(200, chat.state(actor));
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/dev/reset") {
+      store.reset();
+      faults.clear();
+      reply(200, { ok: true });
+      return;
+    }
+    if (req.method === "POST" && url.pathname === "/api/dev/fault") {
+      if (!["none", "before-save", "after-save"].includes(body.mode))
+        throw new HttpError(400, "Unknown failure mode.");
+      faults.set(actor, body.mode);
+      reply(200, { mode: body.mode });
+      return;
+    }
+    const messages = url.pathname.match(
+      /^\/api\/conversations\/([^/]+)\/messages$/,
+    );
+    if (messages && req.method === "GET") {
+      reply(200, { messages: chat.messages(actor, messages[1]) });
+      return;
+    }
+    if (messages && req.method === "POST") {
+      chat.conversation(actor, messages[1]);
+      const fault = faults.get(actor);
+      faults.delete(actor);
+      if (fault === "before-save")
+        throw new HttpError(
+          503,
+          "Connection failed before the message was saved.",
+        );
+      const message = chat.send(actor, messages[1], body);
+      if (fault === "after-save")
+        throw new HttpError(
+          503,
+          "Connection lost. The server saved the message, but the sender did not receive confirmation.",
+        );
+      reply(201, { message });
+      return;
+    }
+    throw new HttpError(404, "Route not found.");
+  } catch (e) {
+    if (!(e instanceof HttpError)) console.error(e);
+    reply(e instanceof HttpError ? e.status : 500, {
+      error: e instanceof HttpError ? e.message : "Unexpected server error.",
+    });
+  }
 });
-const port=Number(process.env.PORT??4310);
-server.listen(port,'127.0.0.1',()=>console.log('Messaging API http://127.0.0.1:'+port));
-function shutdown(){server.close(()=>{store.db.close();process.exit(0);});}
-process.on('SIGTERM',shutdown);process.on('SIGINT',shutdown);
+server.listen(Number(process.env.PORT ?? 4310), "127.0.0.1", () =>
+  console.log("Nearby Chat · http://127.0.0.1:" + (process.env.PORT ?? 4310)),
+);
+function stop() {
+  server.close(() => {
+    store.db.close();
+    process.exit(0);
+  });
+  server.closeIdleConnections();
+}
+process.on("SIGTERM", stop);
+process.on("SIGINT", stop);

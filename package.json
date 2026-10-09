@@ -1,6 +1,6 @@
 {
-  "name": "nearby-messaging-exercise",
-  "version": "1.0.0",
+  "name": "nearby-chat-exercise",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -8,8 +8,7 @@
   },
   "scripts": {
     "start": "tsx src/server.ts",
-    "dev": "node tools/dev.mjs",
-    "cli": "tsx tools/cli.ts",
+    "dev": "node --watch --import tsx src/server.ts",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
