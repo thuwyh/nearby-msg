@@ -21,12 +21,15 @@ npm run dev
 
 Open **http://127.0.0.1:4310** for the web workbench. The simulated provider runs on port 4311.
 
-- Start in Business notifications: choose a service event and click **1. Create queued messages**.
-- Click **2. Send queued messages**, then select a recipient in the message list to see details.
-- Other tabs cover custom messages, user preferences, campaign previews and provider simulation.
-- Event replay, sample-job editing, simulated time and data reset are expandable controls.
-- Open a message to update delivery status or request a support retry as either demo identity.
-- Inspect actual message state, provider calls, audit entries and the request log. Switch between English and Chinese in the header.
+- **Customer (Alex):** submit the plumbing request, manage consent, read delivered notifications.
+- **Professional (Jordan / Sam):** switch identity to see each person's matched requests, preferences and inbox.
+- **Platform:** select professionals for the request, mark service complete, dispatch messages, preview campaigns and investigate failures.
+- A match is the platform's chosen recipient list, not a booking. No matching algorithm or job-acceptance flow is required.
+- The **messaging gateway** is the email/SMS vendor simulated on port 4311, distinct from home-service professionals.
+- Open a platform message to submit a delivery receipt or request a support retry. Inboxes show only backend messages marked delivered.
+- Simulated time, reset and advanced event replay remain available. The request journey persists across restarts. Switch English / Chinese in the header.
+
+The views and basic interactions are supplied. Edit the UI and backend as needed to deliver your chosen tasks end to end; no page redesign is required. Build your own tests. View switching is a local simulator control, not production authentication.
 
 The workbench calls the same backend you are editing. It does not implement the tasks, evaluate correctness or replace your own tests. The starter may show missing or incorrect behavior; task requirements are in the separate brief.
 The API restarts when you edit source; provider state persists.
@@ -54,6 +57,7 @@ Briefly state your priorities, then build and verify. You may refactor and add t
 
 ## Map
 
+- src/journey.ts: demo request lifecycle → existing event ingestion; no delivery policies.
 - src/engine.ts: event → intention → decision → provider.
 - src/tasks/: the ten tasks.
 - src/store.ts: SQLite, transactions and consent history.

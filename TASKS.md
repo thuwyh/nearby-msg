@@ -2,9 +2,21 @@
 
 30 minutes. Choose your order. AI tools are welcome. Each task has two acceptance groups, worth half its stated weight. You do not need to finish everything.
 
+## The scenario
+
+Alex needs a plumber. A service request (job-1) represents that need. Submitting it, selecting professionals and completing the service produce the three input events.
+
+Customer · Alex: Submit the request, manage contact preferences and read delivered emails or SMS.
+Professional · Jordan / Sam: Switch people to see their matched requests, preferences and delivered notifications. A match means the platform selected them to receive the request; no matching algorithm or booking flow is required.
+Platform · Nearby: Select professionals, mark service complete, send messages, preview campaigns and investigate failures. The messaging gateway is the email/SMS vendor, not the home-service professional.
+
+The three views and basic interactions are provided. Modify the frontend and backend as needed to make your chosen tasks work end to end. Demonstrate actual backend behavior through the views and your own tests. No page redesign is required.
+
 ## T1 Route matched requests (6 points)
 
-Notify every matched professional, once, by SMS.
+The platform selects Jordan, Sam or both for Alex’s plumbing request. Send one SMS to each selected professional.
+
+Platform: confirm a match, dispatch, submit delivery receipts, then switch between Jordan and Sam.
 
 File: src/tasks/t1-routing.ts
 
@@ -15,6 +27,8 @@ File: src/tasks/t1-routing.ts
 
 A withdrawal must affect queued messages and retries.
 
+Customer or Professional: withdraw consent after a message is queued; dispatch from Platform.
+
 File: src/tasks/t2-consent.ts
 
 - A: Require consent for the selected channel. Global do-not-contact overrides every message purpose.
@@ -23,6 +37,8 @@ File: src/tasks/t2-consent.ts
 ## T3 Deduplicate incoming events (10 points)
 
 Upstream retries should not create extra message intentions.
+
+Platform → Advanced debugging: replay an event from the request history.
 
 File: src/tasks/t3-dedup.ts
 
@@ -33,6 +49,8 @@ File: src/tasks/t3-dedup.ts
 
 Send neither too early nor after a message loses its value.
 
+Platform: complete the service or create a scheduled message; advance the simulated clock.
+
 File: src/tasks/t4-schedule.ts
 
 - A: Honor scheduledAt and nextAt. At or after expiresAt, expire without sending.
@@ -41,6 +59,8 @@ File: src/tasks/t4-schedule.ts
 ## T5 Recover uncertain sends (14 points)
 
 A timeout does not tell you whether a message was accepted.
+
+Platform → Gateway faults: configure a timeout or failure, dispatch and inspect the records.
 
 File: src/tasks/t5-recovery.ts
 
@@ -51,6 +71,8 @@ File: src/tasks/t5-recovery.ts
 
 Protect people from late-night messages and overlapping campaigns.
 
+Platform: create engagement messages for the same person; try late-night and repeated sends.
+
 File: src/tasks/t6-limits.ts
 
 - A: Defer engagement messages during local 21:00–08:00. Transactional messages are exempt from quiet hours and engagement caps.
@@ -59,6 +81,8 @@ File: src/tasks/t6-limits.ts
 ## T7 Handle duplicate and late receipts (8 points)
 
 Project delivery status by provider sequence, not arrival order.
+
+Platform → Message details: submit repeated or out-of-order delivery receipts.
 
 File: src/tasks/t7-receipts.ts
 
@@ -69,6 +93,8 @@ File: src/tasks/t7-receipts.ts
 
 Keep experiment assignments consistent across a user's messages.
 
+Platform: create engagement messages with one experiment ID; compare groups across events.
+
 File: src/tasks/t8-experiment.ts
 
 - A: Use bucket(userId, experimentId): 0–19 holdout, 20–59 template A, 60–99 template B. Keep assignments stable across events and restarts.
@@ -78,6 +104,8 @@ File: src/tasks/t8-experiment.ts
 
 Explain what would happen without actually sending anything.
 
+Platform → Campaign preview: preview a plan, change recipient preferences, then dispatch.
+
 File: src/tasks/t9-preview.ts
 
 - A: Deduplicate users. Show each decision, reason and earliest send time with matching totals. Do not write messages, send or spend quota.
@@ -86,6 +114,8 @@ File: src/tasks/t9-preview.ts
 ## T10 Make support retries safe (14 points)
 
 An internal retry button must obey the same platform rules.
+
+Platform → Message details: request a retry as operator or viewer, then dispatch.
 
 File: src/tasks/t10-support.ts
 

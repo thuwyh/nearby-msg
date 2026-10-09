@@ -9,6 +9,7 @@ import { preview } from './tasks/t9-preview.ts';
 import { retry } from './tasks/t10-support.ts';
 import { fixture,names } from './fixtures.ts';
 import { draft } from './helpers.ts';
+import { actOnRequest } from './journey.ts';
 import type { Event,Message,Receipt,User } from './types.ts';
 
 const store=new Store(process.env.LAB_DB??resolve('.data/lab.sqlite'));
@@ -41,7 +42,8 @@ const server=createServer((req,res)=>{
       const u=new URL(req.url??'/', 'http://localhost'),path=u.pathname;
       let result:unknown;
       if(req.method==='GET'&&path==='/health')result={ok:true,now:store.now(),unsupported:ctx.unsupported()};
-      else if(req.method==='GET'&&path==='/dev/state')result={now:store.now(),messages:store.messages(),users:store.all<User>('user'),jobs:store.all('job'),audit:store.all('audit')};
+      else if(req.method==='GET'&&path==='/dev/state')result={now:store.now(),messages:store.messages(),users:store.all<User>('user'),jobs:store.all('job'),journeys:store.all('journey'),audit:store.all('audit')};
+      else if(req.method==='POST'&&path==='/dev/journey')result=actOnRequest(string(b.action),b.professionals,ctx);
       // Local workbench only: fixed provider routes, never an arbitrary URL proxy.
       else if((req.method==='GET'&&path==='/dev/provider/records')||(req.method==='POST'&&['/dev/provider/fault','/dev/provider/release'].includes(path))){
         if(path.endsWith('/fault')){

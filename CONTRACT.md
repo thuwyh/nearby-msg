@@ -82,6 +82,8 @@ Build your own tests and verification tools. Final review checks the stated beha
 
 ## Local web workbench
 
-GET / serves the workbench. GET /dev/state returns the current clock, messages, users, jobs and audit entries. Browser actions use the same routes above.
+GET / serves the workbench. GET /dev/state returns the current clock, messages, users, jobs, journeys and audit entries. Browser actions use the same routes above.
 
 For same-origin provider controls, GET /dev/provider/records, POST /dev/provider/fault and POST /dev/provider/release forward only these fixed simulator routes. No delivery policy is implemented in the UI.
+
+The marketplace demo uses POST /dev/journey with action `submit`, `match` (plus `professionals`, an array of recipient IDs), or `complete`. It advances the single demo request job-1 through submitted → matched → completed, persisting the history and calling the same event-ingestion engine. Each action gets a fresh event ID. Use POST /events to replay those IDs and exercise deduplication; direct events do not advance the demo journey. Reset clears the journey too. Matching selects notification recipients; job acceptance, booking and matching algorithms are out of scope. Customer / Professional / Platform are simulator perspectives, not authorization boundaries. A professional is a home-service worker; the provider protocol above describes the separate messaging gateway.
