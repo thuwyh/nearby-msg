@@ -1,0 +1,192 @@
+[
+  {
+    "id": "T1",
+    "title": "Route matched requests",
+    "weight": 6,
+    "file": "t1-routing.ts",
+    "brief": "Notify every matched professional, once, by SMS.",
+    "checks": [
+      "Use the matched professionals and the supplied service template. Do not notify unrelated users.",
+      "Deduplicate recipient IDs. Reject missing recipient or service data without partial writes."
+    ],
+    "zh": {
+      "title": "向匹配的服务人员发送通知",
+      "brief": "向每位匹配的服务人员发送一次短信。",
+      "checks": [
+        "使用已匹配的服务人员列表和提供的服务模板，不通知无关用户。",
+        "按接收者 ID 去重。缺少接收者或服务数据时拒绝请求，不留下部分写入的数据。"
+      ]
+    }
+  },
+  {
+    "id": "T2",
+    "title": "Honor current consent",
+    "weight": 12,
+    "file": "t2-consent.ts",
+    "brief": "A withdrawal must affect queued messages and retries.",
+    "checks": [
+      "Require consent for the selected channel. Global do-not-contact overrides every message purpose.",
+      "Recheck before each send and record the consent revision. Never resurrect suppressed messages or rewrite an accepted send."
+    ],
+    "zh": {
+      "title": "遵守最新授权状态",
+      "brief": "撤回授权必须影响已排队消息和重试。",
+      "checks": [
+        "所选渠道必须已获授权。全局禁止联系（do-not-contact）适用于所有消息用途。",
+        "每次发送前重新检查，并记录授权版本。不得恢复已被拦截的消息，也不得改写供应商已接受的发送记录。"
+      ]
+    }
+  },
+  {
+    "id": "T3",
+    "title": "Deduplicate incoming events",
+    "weight": 10,
+    "file": "t3-dedup.ts",
+    "brief": "Upstream retries should not create extra message intentions.",
+    "checks": [
+      "Replay the same event ID and payload with the same result. Reject reuse of that ID with different data.",
+      "Persist the decision across restarts. Keep distinct recipients, channels and purposes separate."
+    ],
+    "zh": {
+      "title": "对输入事件去重",
+      "brief": "上游重试不应创建额外的消息发送意图。",
+      "checks": [
+        "相同事件 ID 和内容的重放应返回相同结果；同一 ID 携带不同内容时拒绝请求。",
+        "去重结果在重启后仍有效；不同接收者、渠道和用途应分别处理。"
+      ]
+    }
+  },
+  {
+    "id": "T4",
+    "title": "Respect schedules and expiry",
+    "weight": 8,
+    "file": "t4-schedule.ts",
+    "brief": "Send neither too early nor after a message loses its value.",
+    "checks": [
+      "Honor scheduledAt and nextAt. At or after expiresAt, expire without sending.",
+      "If the earliest eligible time reaches expiry, do not catch up later. Use the supplied clock, including after restart."
+    ],
+    "zh": {
+      "title": "遵守调度时间与有效期",
+      "brief": "不能提前发送，也不能在消息失效后发送。",
+      "checks": [
+        "遵守 scheduledAt 和 nextAt。到达或超过 expiresAt 时标记过期，不再发送。",
+        "若最早可发送时间已到有效期，不得之后补发。始终使用提供的时钟，重启后也一样。"
+      ]
+    }
+  },
+  {
+    "id": "T5",
+    "title": "Recover uncertain sends",
+    "weight": 14,
+    "file": "t5-recovery.ts",
+    "brief": "A timeout does not tell you whether a message was accepted.",
+    "checks": [
+      "Retry temporary failures after 60 and 120 seconds; at most three send calls. Do not retry permanent failures.",
+      "Recover both timeout modes and process restarts using persistent identity. Produce at most one provider message. After withdrawal, lookup is allowed; another send is not."
+    ],
+    "zh": {
+      "title": "恢复结果不明的发送",
+      "brief": "超时并不代表供应商没有接受消息。",
+      "checks": [
+        "临时失败分别等待 60 秒和 120 秒后重试；最多调用发送接口三次。永久失败不重试。",
+        "使用持久化标识处理两种超时模式和进程重启，最多生成一条供应商消息。撤回授权后允许查询，但不得再次发送。"
+      ]
+    }
+  },
+  {
+    "id": "T6",
+    "title": "Share send limits",
+    "weight": 12,
+    "file": "t6-limits.ts",
+    "brief": "Protect people from late-night messages and overlapping campaigns.",
+    "checks": [
+      "Defer engagement messages during local 21:00–08:00. Transactional messages are exempt from quiet hours and engagement caps.",
+      "Across channels and campaigns, accept at most two engagement messages per user per local day. Failed attempts, holdout and duplicate receipts do not consume quota. Combine limits with scheduling and expiry."
+    ],
+    "zh": {
+      "title": "统一发送限额",
+      "brief": "避免深夜打扰以及多个活动叠加发送。",
+      "checks": [
+        "用户当地时间 21:00–08:00 推迟发送互动类（engagement）消息。事务类（transactional）消息不受静默时段和互动类消息限额约束。",
+        "跨渠道、跨活动，每位用户每个当地自然日最多有两条互动类消息被供应商接受。失败尝试、对照组和重复回执不占额度。限额需与调度和有效期共同生效。"
+      ]
+    }
+  },
+  {
+    "id": "T7",
+    "title": "Handle duplicate and late receipts",
+    "weight": 8,
+    "file": "t7-receipts.ts",
+    "brief": "Project delivery status by provider sequence, not arrival order.",
+    "checks": [
+      "Replay identical callbacks without applying them again. Preserve the valid event history.",
+      "Use the highest sequence. Reject conflicting same-ID/same-sequence content and unknown provider message IDs without overwriting current status."
+    ],
+    "zh": {
+      "title": "处理重复及乱序回执",
+      "brief": "按供应商序号更新送达状态，不按回执到达顺序更新。",
+      "checks": [
+        "相同回调重放时不重复应用，保留有效事件历史。",
+        "以最大序号为准。同一 ID 或同一序号对应不同内容、或供应商消息 ID 未知时，拒绝处理，不覆盖当前状态。"
+      ]
+    }
+  },
+  {
+    "id": "T8",
+    "title": "Add a stable holdout",
+    "weight": 6,
+    "file": "t8-experiment.ts",
+    "brief": "Keep experiment assignments consistent across a user's messages.",
+    "checks": [
+      "Use bucket(userId, experimentId): 0–19 holdout, 20–59 template A, 60–99 template B. Keep assignments stable across events and restarts.",
+      "Holdout sends nothing and consumes no quota. Experiments cannot bypass other rules and do not affect transactional messages."
+    ],
+    "zh": {
+      "title": "加入稳定的实验对照组",
+      "brief": "同一用户的多条消息应保持实验分组一致。",
+      "checks": [
+        "使用 bucket(userId, experimentId)：0–19 为不发送对照组，20–59 使用模板 A，60–99 使用模板 B。跨事件、重启后分组应保持不变。",
+        "对照组不发送，也不占额度。实验不能绕过其他规则，且不影响事务类消息。"
+      ]
+    }
+  },
+  {
+    "id": "T9",
+    "title": "Preview a campaign",
+    "weight": 10,
+    "file": "t9-preview.ts",
+    "brief": "Explain what would happen without actually sending anything.",
+    "checks": [
+      "Deduplicate users. Show each decision, reason and earliest send time with matching totals. Do not write messages, send or spend quota.",
+      "Reuse the same decision interface as dispatch. Report unsupported policies. Recheck at actual send time; a preview is not permission."
+    ],
+    "zh": {
+      "title": "预览活动",
+      "brief": "展示预计执行结果，但不实际发送。",
+      "checks": [
+        "对用户去重，展示每项决策、原因和最早发送时间，汇总数量应一致。不得写入消息、实际发送或消耗额度。",
+        "与实际发送复用同一决策接口，明确报告尚未支持的规则。发送时仍须重新检查，预览结果不代表发送许可。"
+      ]
+    }
+  },
+  {
+    "id": "T10",
+    "title": "Make support retries safe",
+    "weight": 14,
+    "file": "t10-support.ts",
+    "brief": "An internal retry button must obey the same platform rules.",
+    "checks": [
+      "Only the supplied operator identity can retry. Audit accepted and rejected operations; replay a request ID without scheduling twice.",
+      "Preserve the message key and attempt budget. Do not resend terminal messages. Reconcile unknown outcomes—even after the send budget runs out. Eligible retries still pass all active send policies."
+    ],
+    "zh": {
+      "title": "让客服重试操作安全可靠",
+      "brief": "内部重试按钮也必须遵守平台的统一规则。",
+      "checks": [
+        "仅允许提供的 operator 身份重试。对接受及拒绝的操作都记录审计日志；重放相同请求 ID 时不得重复调度。",
+        "保留消息幂等键和尝试次数预算。不重发已处于终态的消息。即使发送次数耗尽，也须核实未知结果。符合重试条件的消息仍须经过所有已启用的发送规则。"
+      ]
+    }
+  }
+]

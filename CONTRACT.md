@@ -79,3 +79,9 @@ Set LAB_KEY=viewer-demo to exercise viewer permission checks.
 If you implement related tasks, also verify: replayed matches; revoke then retry; accepted timeout then restart/revoke; quiet hours beyond expiry; cross-channel quota with holdout; preview then revoke; out-of-order receipts; direct viewer calls.
 
 Build your own tests and verification tools. Final review checks the stated behavior and interactions among the tasks you claim to complete. Internal implementation choices are yours.
+
+## Local web workbench
+
+GET / serves the workbench. GET /dev/state returns the current clock, messages, users, jobs and audit entries. Browser actions use the same routes above.
+
+For same-origin provider controls, GET /dev/provider/records, POST /dev/provider/fault and POST /dev/provider/release forward only these fixed simulator routes. No delivery policy is implemented in the UI.

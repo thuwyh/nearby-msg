@@ -15,12 +15,12 @@ const store=new Store(process.env.LAB_DB??resolve('.data/lab.sqlite'));
 if(!store.all<User>('user').length)store.seed();
 const providerUrl=process.env.PROVIDER_URL??'http://127.0.0.1:4311';
 const ctx=context(store,new HttpProvider(providerUrl));
-const home=readFileSync(new URL('../tools/local-home.html',import.meta.url),'utf8')
-  .replaceAll('{{SERVICE}}','Messaging API · 消息服务')
-  .replaceAll('{{DESCRIPTION}}','This is the local messaging API. It manages events, queued messages and delivery policies. The interview task page is linked below.')
-  .replaceAll('{{DESCRIPTION_ZH}}','这里是本地消息服务接口，负责管理事件、消息队列和发送规则。题面请打开下方链接。')
-  .replaceAll('{{API_URL}}','')
-  .replaceAll('{{PROVIDER_URL}}',providerUrl);
+const assets:Record<string,[string,string]>={
+  '/':['index.html','text/html; charset=utf-8'],
+  '/workbench/style.css':['style.css','text/css; charset=utf-8'],
+  '/workbench/app.js':['app.js','text/javascript; charset=utf-8'],
+  '/workbench/tasks.json':['tasks.json','application/json; charset=utf-8']
+};
 const string=(v:unknown):string=>{if(typeof v!=='string'||!v)throw new Error('Expected nonempty string');return v;};
 const date=(v:unknown):string=>{const d=new Date(string(v));if(!Number.isFinite(d.getTime()))throw new Error('Invalid date');return d.toISOString();};
 async function control(path:string,body:unknown):Promise<void> {
@@ -29,8 +29,10 @@ async function control(path:string,body:unknown):Promise<void> {
 }
 let serial=Promise.resolve();
 const server=createServer((req,res)=>{
-  if(req.method==='GET'&&new URL(req.url??'/', 'http://localhost').pathname==='/'){
-    res.writeHead(200,{'content-type':'text/html; charset=utf-8'});res.end(home);return;
+  const asset=assets[new URL(req.url??'/', 'http://localhost').pathname];
+  if(req.method==='GET'&&asset){
+    res.writeHead(200,{'content-type':asset[1],'cache-control':'no-store'});
+    res.end(readFileSync(new URL('../tools/workbench/'+asset[0],import.meta.url)));return;
   }
   const job=async()=>{
     let status=200;
@@ -40,6 +42,17 @@ const server=createServer((req,res)=>{
       const u=new URL(req.url??'/', 'http://localhost'),path=u.pathname;
       let result:unknown;
       if(req.method==='GET'&&path==='/health')result={ok:true,now:store.now(),unsupported:ctx.unsupported()};
+      else if(req.method==='GET'&&path==='/dev/state')result={now:store.now(),messages:store.messages(),users:store.all<User>('user'),jobs:store.all('job'),audit:store.all('audit')};
+      // Local workbench only: fixed provider routes, never an arbitrary URL proxy.
+      else if((req.method==='GET'&&path==='/dev/provider/records')||(req.method==='POST'&&['/dev/provider/fault','/dev/provider/release'].includes(path))){
+        if(path.endsWith('/fault')){
+          string(b.userId);
+          const modes=['accepted','temporary_failure','permanent_failure','before_timeout','after_timeout','after_pause'];
+          if(!Array.isArray(b.modes)||!b.modes.every(mode=>typeof mode==='string'&&modes.includes(mode)))throw new Error('Invalid provider fault sequence');
+        }
+        const r=await fetch(providerUrl+path.slice('/dev/provider'.length),{method:req.method,headers:{'content-type':'application/json'},body:req.method==='POST'?JSON.stringify(b):undefined,signal:AbortSignal.timeout(5000)});
+        status=r.status;result=await r.json();
+      }
       else if(req.method==='GET'&&path==='/messages')result=store.messages();
       else if(req.method==='GET'&&path.startsWith('/messages/')){
         const id=decodeURIComponent(path.slice(10));const message=store.get<Message>('message',id);
