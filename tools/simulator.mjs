@@ -11,8 +11,8 @@ const all=k=>db.prepare('SELECT data FROM entries WHERE kind=? ORDER BY rowid').
 const paused=[];
 const home=readFileSync(new URL('./local-home.html',import.meta.url),'utf8')
   .replaceAll('{{SERVICE}}','Simulated provider · 模拟供应商')
-  .replaceAll('{{DESCRIPTION}}','This is the local provider API. It accepts simulated sends and records their outcomes. The interview task page is linked below.')
-  .replaceAll('{{DESCRIPTION_ZH}}','这里是本地模拟供应商接口，负责接收模拟发送并记录结果。题面请打开下方链接。')
+  .replaceAll('{{DESCRIPTION}}','This is the local provider API. It accepts simulated sends and records their outcomes. Open the messaging console below to create and inspect messages.')
+  .replaceAll('{{DESCRIPTION_ZH}}','这里是本地模拟供应商接口，负责接收模拟发送并记录结果。请通过下方链接进入消息控制台。')
   .replaceAll('{{API_URL}}','http://127.0.0.1:'+(process.env.PORT??4310))
   .replaceAll('{{PROVIDER_URL}}','');
 const server=createServer(async(req,res)=>{

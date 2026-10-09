@@ -18,8 +18,7 @@ const ctx=context(store,new HttpProvider(providerUrl));
 const assets:Record<string,[string,string]>={
   '/':['index.html','text/html; charset=utf-8'],
   '/workbench/style.css':['style.css','text/css; charset=utf-8'],
-  '/workbench/app.js':['app.js','text/javascript; charset=utf-8'],
-  '/workbench/tasks.json':['tasks.json','application/json; charset=utf-8']
+  '/workbench/app.js':['app.js','text/javascript; charset=utf-8']
 };
 const string=(v:unknown):string=>{if(typeof v!=='string'||!v)throw new Error('Expected nonempty string');return v;};
 const date=(v:unknown):string=>{const d=new Date(string(v));if(!Number.isFinite(d.getTime()))throw new Error('Invalid date');return d.toISOString();};

@@ -21,12 +21,14 @@ npm run dev
 
 Open **http://127.0.0.1:4310** for the web workbench. The simulated provider runs on port 4311.
 
-- Select any of the ten tasks and load its scene (this resets local data).
-- Submit or replay events, seed messages, change consent, advance the simulated clock and dispatch.
-- Set provider faults, submit receipts, preview campaigns and request support retries as either demo identity.
+- Start in Business notifications: choose a service event and click **1. Create queued messages**.
+- Click **2. Send queued messages**, then select a recipient in the message list to see details.
+- Other tabs cover custom messages, user preferences, campaign previews and provider simulation.
+- Event replay, sample-job editing, simulated time and data reset are expandable controls.
+- Open a message to update delivery status or request a support retry as either demo identity.
 - Inspect actual message state, provider calls, audit entries and the request log. Switch between English and Chinese in the header.
 
-The workbench calls the same backend you are editing. It does not implement the tasks, evaluate correctness or replace your own tests. Tasks may show missing or incorrect behavior in the starter.
+The workbench calls the same backend you are editing. It does not implement the tasks, evaluate correctness or replace your own tests. The starter may show missing or incorrect behavior; task requirements are in the separate brief.
 The API restarts when you edit source; provider state persists.
 
 The CLI is optional. The same operations are available in the workbench. For terminal use:
