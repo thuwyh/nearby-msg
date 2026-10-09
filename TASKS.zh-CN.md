@@ -17,6 +17,8 @@ Alex 想拍下漏水的位置，让对方更容易理解问题。
 - 选择 PNG、JPEG 或 WebP 图片（不超过 2 MiB）发送，双方都可以点击查看大图；可以不附文字。
 - 刷新后图片仍可查看；不支持的文件或超限图片要给出明确提示。
 
+[下载示例图片（PNG，1.87 MiB）](sample-assets/leaking-sink.png)
+
 ## T2 · 私信师傅
 
 Alex 想分别向 Jordan 和 Sam 咨询维修方案。

@@ -31,6 +31,12 @@ Choose tasks and change the frontend and backend as needed. You do not need to f
 npm run typecheck
 ```
 
+## Sample image / 示例图片
+
+For T1, use [sample-assets/leaking-sink.png](sample-assets/leaking-sink.png): an AI-generated photo of a leaking sink drain (PNG, 1.87 MiB, below the 2 MiB limit). Included in the repository; no need to find your own image.
+
+T1 可直接使用仓库自带的水槽漏水示例图片，无需另找素材。
+
 ## Code map
 
 | File | Purpose |

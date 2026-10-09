@@ -17,6 +17,8 @@ Start with the existing support conversation
 - Choose a PNG, JPEG or WebP image (up to 2 MiB), send it, and open it at a larger size on either side. Text is optional.
 - The image remains available after refresh. Reject unsupported files and oversized images with a clear error.
 
+[Download sample photo (PNG, 1.87 MiB)](sample-assets/leaking-sink.png)
+
 ## T2 · Message a professional
 
 Alex wants to discuss the repair separately with Jordan and Sam.
