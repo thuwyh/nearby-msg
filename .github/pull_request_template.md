@@ -1,19 +1,20 @@
-## Tasks
+## Selected scenario and user problem
 
-Completed:
-Partially completed:
-Not attempted:
+Which scenario did you choose, and what problem did you prioritize?
+
+## Scope and decisions
+
+What did you choose to build, what did you leave out, and why?
+Include any assumptions clarified with the interviewer.
 
 ## Try it in the UI
 
-Steps to demonstrate the completed features:
+Steps to demonstrate one complete user flow:
 
 ## Verification
 
-Commands to run your tests and the results you observed:
-
-## Decisions and remaining gaps
+Commands and results, plus any manual checks or remaining gaps:
 
 ## AI collaboration
 
-What did you delegate, and how did you verify or correct the output?
+What did you delegate, and what did you inspect, change or verify yourself?

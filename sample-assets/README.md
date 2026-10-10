@@ -1,6 +1,6 @@
 # Sample photo
 
-[leaking-sink.png](leaking-sink.png) — 1,963,034 bytes (1.87 MiB), below T1's 2 MiB limit. Use this file for image-message development and demonstration.
+[leaking-sink.png](leaking-sink.png) — 1,963,034 bytes (1.87 MiB), available if it helps your chosen scenario.
 
 AI-generated with the built-in imagegen tool. No real customer's photo or personal information is used.
 

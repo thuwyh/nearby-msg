@@ -1,41 +1,41 @@
 # Nearby Chat
 
-A small home-services chat app for a 30-minute, AI-assisted coding exercise.
+A product engineering exercise: choose **one of three scenarios**, define a useful scope, and build a working version with AI. Coding time is at most **30 minutes**.
 
-Alex is a customer with a leaking kitchen sink. Jordan and Sam are plumbers. Nearby Support is the platform’s customer service team.
+Alex has a leaking kitchen sink. Jordan and Sam are plumbers. Nearby Support is the platform's customer service team.
 
 ## Start
 
-Use **Node.js 24 or newer**. Install and check your environment before the coding timer starts.
+Use **Node.js 24 or newer**. Install and check the environment before the coding timer starts.
 
 ```sh
 npm ci
 npm run dev
 ```
 
-Open **http://127.0.0.1:4310**. Only this port is needed.
+Open **http://127.0.0.1:4310**.
 
-1. As **Customer**, send a message to Nearby Support.
+1. As **Customer**, send a text message to Nearby Support.
 2. Switch to **Platform** to read and reply.
-3. Switch back to see the reply. The **Professional** view switches between Jordan and Sam; they start without conversations.
+3. The **Professional** view switches between Jordan and Sam; they start without conversations.
 
-The starter has one **empty** customer–support conversation, text messaging, perspective switching and persistent SQLite storage. The ten requested features are not implemented. No messages are sent outside this machine.
+The starter provides one empty customer–support conversation, text messaging, perspective switching and SQLite persistence. Use this as your starting point, and change the frontend and backend as needed.
 
-## Your work
+## Choose your scenario
 
-[Interview brief](https://nearby-messaging-interview.thrivingpanda.chatgpt.site/) · [Tasks](TASKS.md) · [中文题面](TASKS.zh-CN.md)
+[Interview brief](https://nearby-messaging-interview.thrivingpanda.chatgpt.site/) · [English](TASKS.md) · [中文题面](TASKS.zh-CN.md)
 
-Choose tasks and change the frontend and backend as needed. You do not need to finish everything. Build your own tests. Open a PR from your fork to `thuwyh/nearby-msg`; include task IDs, how to try your changes, test commands/results and remaining gaps.
+Explain the user problem, ask questions, and choose your scope and interactions. Deliver one complete user flow, write your own checks, and explain your tradeoffs. You do not need to implement every possible feature.
+
+Open a PR from your fork to `thuwyh/nearby-msg`. Include the selected scenario, your decisions, demo steps, verification and remaining gaps.
 
 ```sh
 npm run typecheck
 ```
 
-## Sample image / 示例图片
+## Optional material
 
-For T1, use [sample-assets/leaking-sink.png](sample-assets/leaking-sink.png): an AI-generated photo of a leaking sink drain (PNG, 1.87 MiB, below the 2 MiB limit). Included in the repository; no need to find your own image.
-
-T1 可直接使用仓库自带的水槽漏水示例图片，无需另找素材。
+[sample-assets/leaking-sink.png](sample-assets/leaking-sink.png) is an AI-generated example photo (PNG, 1.87 MiB), available if it helps your chosen approach.
 
 ## Code map
 
@@ -43,18 +43,18 @@ T1 可直接使用仓库自带的水槽漏水示例图片，无需另找素材�
 | --- | --- |
 | `src/server.ts` | HTTP routes, static files and one-shot connection faults |
 | `src/chat.ts` | Membership checks and text messaging |
-| `src/store.ts` | SQLite records, four demo people, empty initial conversation |
+| `src/store.ts` | SQLite records, four demo people, initial conversation |
 | `src/types.ts` | Shared data types |
 | `tools/workbench/` | Plain HTML/CSS/JavaScript interface |
 
-[API notes](CONTRACT.md) describe existing routes and suggested extension conventions. No framework or architecture change is required. If you change the API conventions, document the mapping in your PR.
+[Starter API reference](CONTRACT.md) describes the code that is already provided. You can extend or change it; document changes needed to run or verify your submission.
 
 ## Local state
 
-- Data is stored in `.data/chat-v2.sqlite` (ignored by Git). Reloads and server restarts preserve it.
-- **Reset demo** clears this chat database after confirmation.
-- Simulation controls can fail the next send before saving or after saving but before returning confirmation. They affect only the current identity.
+- Data is stored in `.data/chat-v2.sqlite` (ignored by Git). Refresh and server restart preserve it.
+- **Reset demo** clears the chat database after confirmation.
+- Simulation controls can fail the next send before saving or after saving but before confirmation. They affect only the current identity.
 - `PORT` changes the HTTP port; `CHAT_DB` changes the database path.
-- The identity switcher is a local simulation, not production authentication. The backend still checks conversation membership. Do not add real accounts or external services.
+- The identity switcher simulates people locally. Real sign-in, external accounts and production messaging are outside this exercise. The backend still checks conversation membership.
 
-中文：这是本地聊天模拟器。先以用户身份向客服发送文字，再切换平台回复。十个功能由你选择实现；评估代码不在此仓库中，请自行编写测试。所有数据保存在本地，旧版通知模拟器的数据不会被读取。
+中文：从三个场景中任选一个，自行确定交互和实现范围，最多编码 30 分钟。先说明判断，再演示完整流程和验证结果。评估代码不在此仓库中，请自行编写检查。图片素材位于 `sample-assets/`，可按需使用。
