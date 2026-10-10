@@ -106,6 +106,14 @@
             aria-label="Messages"
           ></div>
           <form id="composer">
+            <button
+              id="describe-problem"
+              type="button"
+              class="problem-launch"
+              data-t="describeProblem"
+            >
+              Describe a home problem
+            </button>
             <label class="sr-only" for="message-input" data-t="write"
               >Write a message</label
             ><textarea
@@ -152,6 +160,48 @@
         </details>
         <button id="reset" class="quiet" data-t="reset">Reset demo</button>
       </footer>
+      <dialog id="problem-dialog" aria-labelledby="problem-title">
+        <form id="problem-form">
+          <div class="problem-heading">
+            <h2 id="problem-title"></h2>
+            <span id="problem-step" role="status"></span>
+          </div>
+          <p id="problem-intro"></p>
+          <p id="problem-stage" class="problem-stage"></p>
+          <progress
+            id="problem-progress"
+            value="1"
+            max="3"
+            aria-label="Description progress"
+          ></progress>
+          <div id="problem-fields"></div>
+          <p id="problem-error" class="error" role="alert" hidden></p>
+          <div class="dialog-actions">
+            <button id="problem-skip" type="button" hidden>
+              Skip optional details
+            </button>
+            <button id="problem-close" type="button">Close</button>
+            <button id="problem-back" type="button">Back</button>
+            <button id="problem-next" class="primary" type="submit">
+              Continue
+            </button>
+          </div>
+        </form>
+      </dialog>
+      <dialog id="summary-dialog" aria-labelledby="summary-title">
+        <form id="summary-form">
+          <h2 id="summary-title" data-t="editSummary">Edit latest summary</h2>
+          <p data-t="summaryHint">Saving adds a new version to the chat. Your original message, answers, and attachments are preserved.</p>
+          <label class="problem-field" for="summary-text"><span data-t="summaryLabel">Report summary</span>
+            <textarea id="summary-text" rows="7" maxlength="4000" required></textarea>
+          </label>
+          <p id="summary-error" class="error" role="alert" hidden></p>
+          <div class="dialog-actions">
+            <button id="summary-cancel" type="button" data-t="cancel">Cancel</button>
+            <button id="summary-save" type="submit" class="primary" data-t="saveSummary">Save summary</button>
+          </div>
+        </form>
+      </dialog>
       <dialog id="reset-dialog">
         <h2 data-t="resetTitle">Start a fresh demo?</h2>
         <p data-t="resetDescription">

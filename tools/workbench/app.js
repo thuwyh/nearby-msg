@@ -1,3 +1,5 @@
+import { setupReport } from "/report.js";
+import { setupChatMedia } from "/chat-media.js";
 const $ = (id) => document.getElementById(id);
 const dictionary = {
   messages: ["messages", "消息"],
@@ -35,6 +37,12 @@ const dictionary = {
     "文字消息 · Enter 发送 · Shift + Enter 换行",
   ],
   send: ["Send message", "发送消息"],
+  describeProblem: ["Describe a home problem", "描述家里的问题"],
+  reportTitle: ["Home problem report", "家居问题描述"],
+  editSummary: ["Edit latest summary", "编辑最新摘要"],
+  saveSummary: ["Save summary", "保存摘要"],
+  summaryLabel: ["Report summary", "问题摘要"],
+  summaryHint: ["Saving adds a new version to the chat. Your original message, answers, and attachments are preserved.", "保存会在聊天中添加新版本。原始消息、答案和附件会保留。"],
   simulation: ["Simulation controls", "模拟工具"],
   nextSend: ["Next send from this identity", "当前身份的下一次发送"],
   normal: ["Normal connection", "正常连接"],
@@ -95,6 +103,8 @@ let actor = "customer",
   busy = false,
   polling = false,
   lastMessages = "";
+const reportCache = new Map();
+let editingReport = null, savingSummary = false;
 const t = (key) => dictionary[key]?.[language === "zh-CN" ? 1 : 0] || key;
 const name = (p) => (p?.id === "support" ? t("support") : p?.name || "");
 const description = (p) =>
@@ -135,6 +145,7 @@ function localize() {
   $("message-input").placeholder =
     language === "en" ? "Write a message…" : "输入消息…";
   if (state) renderState();
+  reportFlow.localize();
   lastMessages = "";
   refresh();
 }
@@ -178,6 +189,7 @@ function renderState() {
     ? t(actor === "support" ? "supportThread" : "customerThread")
     : t("noConversationBody");
   $("composer").hidden = !selected;
+  $("describe-problem").hidden = me.role !== "customer";
   if (!selected)
     $("message-list").innerHTML =
       `<div class="empty"><div class="empty-symbol" aria-hidden="true">…</div><strong>${esc(t("noConversation"))}</strong>${esc(t("noConversationBody"))}</div>`;
@@ -192,13 +204,19 @@ function renderMessages(messages) {
     ? messages
         .map((m) => {
           const sender = state.people.find((p) => p.id === m.senderId);
-          return `<article class="message ${m.senderId === actor ? "mine" : ""}"><div class="bubble">${esc(m.text)}</div><div class="meta">${esc(name(sender))} · ${esc(new Date(m.createdAt).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" }))}</div></article>`;
+          const langIndex = language === "zh-CN" ? 1 : 0;
+          const artifact = m.reportRef && reportCache.get(`${m.reportRef.id}:${m.reportRef.version}`);
+          const report = artifact
+            ? `<section class="problem-card"><strong>${esc(t("reportTitle"))} · ${esc(artifact.report.category.label[langIndex])} · v${artifact.version}</strong><dl class="report-details">${artifact.report.fields.map((f) => `<dt>${esc(f.label[langIndex])}</dt><dd>${esc(f.value)}</dd>`).join("")}</dl>${artifact.authorId === actor ? `<button type="button" data-edit-report="${esc(artifact.id)}">${esc(t("editSummary"))}</button>` : ""}</section>`
+            : "";
+          return `<article class="message ${m.senderId === actor ? "mine" : ""}"><div class="bubble">${esc(artifact?.text ?? m.text)}${chatMedia.markup(artifact?.attachments ?? m.attachments)}${report}</div><div class="meta">${esc(name(sender))} · ${esc(new Date(m.createdAt).toLocaleTimeString(language, { hour: "2-digit", minute: "2-digit" }))}</div></article>`;
         })
         .join("")
     : `<div class="empty"><div class="empty-symbol" aria-hidden="true">…</div><strong>${esc(t("emptyTitle"))}</strong>${esc(t("emptyBody"))}</div>`;
   if (!messages.length) list.scrollTop = 0;
   else if (wasNearBottom || messages.at(-1)?.senderId === actor)
     list.scrollTop = list.scrollHeight;
+  chatMedia.hydrate(list);
 }
 async function refresh() {
   if (polling) return;
@@ -223,6 +241,13 @@ async function refresh() {
         identity,
       );
       if (version !== revision || selected !== conversationId) return;
+      await Promise.all(result.messages.filter(m => m.reportRef).map(async m => {
+        const key = `${m.reportRef.id}:${m.reportRef.version}`;
+        if (reportCache.has(key)) return;
+        const { report } = await api(`/api/conversations/${encodeURIComponent(selected)}/reports/${encodeURIComponent(m.reportRef.id)}?version=${m.reportRef.version}`, undefined, identity);
+        if (version === revision && selected === conversationId) reportCache.set(key, report);
+      }));
+      if (version !== revision || selected !== conversationId) return;
       renderMessages(result.messages);
     }
     $("connection").textContent = t("connected");
@@ -233,6 +258,10 @@ async function refresh() {
   }
 }
 function switchActor(id) {
+  closeSummaryEditor();
+  reportCache.clear();
+  chatMedia.clear();
+  reportFlow.reset();
   actor = id;
   revision++;
   state = null;
@@ -262,13 +291,73 @@ $("professional-select").onchange = (e) => {
 $("conversation-list").onclick = (e) => {
   const button = e.target.closest("[data-conversation]");
   if (!button) return;
+  if (button.dataset.conversation === conversationId) return;
+  closeSummaryEditor();
+  reportCache.clear();
+  chatMedia.clear();
+  reportFlow.reset();
   conversationId = button.dataset.conversation;
   revision++;
   lastMessages = "";
+  $("message-list").replaceChildren();
   $("message-input").value = "";
   $("send-error").hidden = true;
   renderState();
   refresh();
+};
+function closeSummaryEditor() {
+  editingReport = null;
+  $("summary-dialog").close();
+  $("summary-text").value = "";
+}
+$("message-list").addEventListener("click", async (e) => {
+  const button = e.target.closest("[data-edit-report]");
+  if (!button || savingSummary) return;
+  const current = { actor, conversationId, revision };
+  button.disabled = true;
+  try {
+    const { report } = await api(`/api/conversations/${encodeURIComponent(current.conversationId)}/reports/${encodeURIComponent(button.dataset.editReport)}`, undefined, current.actor);
+    if (current.revision !== revision) return;
+    editingReport = { ...current, report };
+    $("summary-text").value = report.text;
+    $("summary-error").hidden = true;
+    $("summary-dialog").showModal();
+  } catch (error) {
+    if (current.revision === revision) {
+      $("send-error").textContent = error.message;
+      $("send-error").hidden = false;
+    }
+  } finally { button.disabled = false; }
+});
+$("summary-cancel").onclick = closeSummaryEditor;
+$("summary-dialog").addEventListener("cancel", e => {
+  if (savingSummary) e.preventDefault();
+  else closeSummaryEditor();
+});
+$("summary-form").onsubmit = async e => {
+  e.preventDefault();
+  if (savingSummary || !editingReport) return;
+  const current = editingReport;
+  savingSummary = true;
+  $("summary-save").disabled = true;
+  $("summary-cancel").disabled = true;
+  $("summary-error").hidden = true;
+  try {
+    await api(`/api/conversations/${encodeURIComponent(current.conversationId)}/reports/${encodeURIComponent(current.report.id)}`, {
+      text: $("summary-text").value, expectedVersion: current.report.version,
+    }, current.actor);
+    if (current.revision === revision) closeSummaryEditor();
+  } catch (error) {
+    if (current.revision === revision) {
+      $("summary-error").textContent = error.message;
+      $("summary-error").hidden = false;
+    }
+  } finally {
+    savingSummary = false;
+    $("summary-save").disabled = false;
+    $("summary-cancel").disabled = false;
+    refresh();
+  }
 };
 $("language").onclick = () => {
   language = language === "en" ? "zh-CN" : "en";
@@ -282,6 +371,7 @@ $("composer").onsubmit = async (e) => {
   const version = revision,
     text = $("message-input").value;
   $("send").disabled = true;
+  $("describe-problem").disabled = true;
   $("send").textContent = t("sending");
   $("send-error").hidden = true;
   try {
@@ -299,6 +389,7 @@ $("composer").onsubmit = async (e) => {
   } finally {
     busy = false;
     $("send").disabled = false;
+    $("describe-problem").disabled = false;
     $("send").textContent = t("send");
     if (version === revision) {
       $("fault-status").textContent = "";
@@ -332,5 +423,28 @@ $("confirm-reset").onclick = async () => {
     $("connection").textContent = e.message;
   }
 };
+const chatMedia = setupChatMedia({
+  context: () => ({ actor, conversationId, revision }),
+  escape: esc,
+  language: () => language,
+});
+const reportFlow = setupReport({
+  api,
+  refresh,
+  escape: esc,
+  language: () => language,
+  context: () => ({ actor, conversationId, revision }),
+  setBusy(value) {
+    busy = value;
+    $("send").disabled = value;
+    $("describe-problem").disabled = value;
+  },
+});
+window.addEventListener("pagehide", () => {
+  reportCache.clear();
+  closeSummaryEditor();
+  chatMedia.clear();
+  reportFlow.reset();
+});
 localize();
 setInterval(refresh, 1000);
