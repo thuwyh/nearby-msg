@@ -31,6 +31,7 @@ Open a PR from your fork to `thuwyh/nearby-msg`. Include the selected scenario, 
 
 ```sh
 npm run typecheck
+npm run check
 ```
 
 ## Optional material
@@ -42,19 +43,20 @@ npm run typecheck
 | File | Purpose |
 | --- | --- |
 | `src/server.ts` | HTTP routes, static files and one-shot connection faults |
-| `src/chat.ts` | Membership checks and text messaging |
-| `src/store.ts` | SQLite records, four demo people, initial conversation |
+| `src/chat.ts` | Membership checks, text messaging, media upload policy |
+| `src/store.ts` | SQLite records and media BLOBs, four demo people, initial conversation |
+| `scripts/check.ts` | End-to-end checks against a real server (`npm run check`) |
 | `src/types.ts` | Shared data types |
 | `tools/workbench/` | Plain HTML/CSS/JavaScript interface |
 
-[Starter API reference](CONTRACT.md) describes the code that is already provided. You can extend or change it; document changes needed to run or verify your submission.
+[System design](docs/DESIGN.md) covers the architecture and the media messaging improvement. [Starter API reference](CONTRACT.md) describes the code that is already provided. You can extend or change it; document changes needed to run or verify your submission.
 
 ## Local state
 
 - Data is stored in `.data/chat-v2.sqlite` (ignored by Git). Refresh and server restart preserve it.
 - **Reset demo** clears the chat database after confirmation.
 - Simulation controls can fail the next send before saving or after saving but before confirmation. They affect only the current identity.
-- `PORT` changes the HTTP port; `CHAT_DB` changes the database path.
+- `PORT` changes the HTTP port; `CHAT_DB` changes the database path; `HOST` changes the bind address.
 - The identity switcher simulates people locally. Real sign-in, external accounts and production messaging are outside this exercise. The backend still checks conversation membership.
 
 中文：从三个场景中任选一个，自行确定交互和实现范围，最多编码 30 分钟。先说明判断，再演示完整流程和验证结果。评估代码不在此仓库中，请自行编写检查。图片素材位于 `sample-assets/`，可按需使用。

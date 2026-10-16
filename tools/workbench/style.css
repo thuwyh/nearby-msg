@@ -527,7 +527,6 @@ dialog p {
     margin: 0 14px 16px;
   }
   .compose-actions > span {
-    max-width: 150px;
     line-height: 1.5;
   }
   .connection {
@@ -562,4 +561,305 @@ body:has(#guide:not([open])) .message-list {
 .empty strong {
   font-size: 16px;
   margin-bottom: 4px;
+}
+
+/* ---- Media messaging ---- */
+.compose-actions {
+  flex-wrap: wrap;
+}
+.compose-hint {
+  font-size: 12px;
+  color: #7b887e;
+  flex: 1;
+  min-width: 140px;
+  line-height: 1.4;
+}
+.media-tools {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tool-group {
+  position: relative;
+}
+.tool {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+#voice-button {
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+}
+#voice-button.recording {
+  background: #fbe9e6;
+  border-color: #e3a79e;
+  color: #9a332b;
+}
+.menu {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  min-width: 170px;
+  background: white;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 4px;
+  box-shadow: 0 8px 24px #14312722;
+}
+.menu button {
+  border: 0;
+  text-align: left;
+  font-weight: 500;
+  font-size: 14px;
+  padding: 9px 12px;
+}
+.recording-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: #fdf3f1;
+  border: 1px solid #f0cfc9;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #6d2d26;
+}
+.recording-bar.cancel-armed {
+  background: #9a332b;
+  color: white;
+}
+.rec-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #d24a3c;
+  animation: pulse 1s infinite alternate;
+}
+.recording-bar[data-mode="starting"] .rec-dot {
+  animation: none;
+  background: #c9b0ab;
+}
+.rec-hint {
+  flex: 1;
+  min-width: 120px;
+}
+.recording-bar button {
+  padding: 6px 12px;
+  font-size: 13px;
+}
+@keyframes pulse {
+  to {
+    opacity: 0.3;
+  }
+}
+.tray {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.tray-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 6px 6px 6px 6px;
+  background: #f8faf7;
+  max-width: 100%;
+}
+.tray-item.error {
+  border-color: #e3a79e;
+  background: #fdf3f1;
+}
+.tray-item img,
+.tray-item video {
+  width: 56px;
+  height: 56px;
+  object-fit: cover;
+  border-radius: 6px;
+  background: #dfe7e1;
+}
+.tray-item audio {
+  width: 190px;
+  height: 36px;
+}
+.tray-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  max-width: 170px;
+  font-size: 13px;
+}
+.tray-info strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tray-info small {
+  color: #718175;
+}
+.tray-item.error small {
+  color: #9a332b;
+}
+.tray-info progress {
+  width: 100%;
+  height: 6px;
+  accent-color: var(--green);
+}
+.link {
+  border: 0;
+  padding: 0;
+  background: none;
+  color: var(--green);
+  text-decoration: underline;
+  font-size: 13px;
+  align-self: flex-start;
+}
+.remove {
+  border: 0;
+  background: none;
+  padding: 4px 8px;
+  color: #6b7c71;
+}
+.message.has-media .bubble {
+  padding: 6px;
+}
+.media {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.media-thumb {
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: 8px;
+  overflow: hidden;
+  line-height: 0;
+}
+.media-thumb img,
+.media-video {
+  display: block;
+  width: 240px;
+  max-width: 100%;
+  max-height: 240px;
+  object-fit: cover;
+  border-radius: 8px;
+  background: #dfe7e1;
+  min-height: 120px;
+}
+.media-video {
+  object-fit: contain;
+  background: #111;
+}
+.voice {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 8px 2px;
+}
+.voice-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.voice audio {
+  width: 260px;
+  max-width: 100%;
+  height: 40px;
+}
+.caption {
+  margin: 0;
+  padding: 6px 10px 4px;
+}
+.media-error {
+  font-size: 13px;
+  padding: 8px;
+  opacity: 0.8;
+}
+.lightbox {
+  max-width: min(92vw, 1000px);
+  padding: 12px;
+}
+.lightbox img {
+  display: block;
+  max-width: 100%;
+  max-height: 78vh;
+  margin: 0 auto 12px;
+  border-radius: 8px;
+}
+.camera-dialog {
+  max-width: min(92vw, 640px);
+}
+.camera-dialog h2 {
+  margin-top: 0;
+  font-size: 18px;
+}
+.camera-dialog video {
+  display: block;
+  width: 100%;
+  border-radius: 8px;
+  background: #111;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.camera-status {
+  min-height: 1.5em;
+  font-size: 14px;
+}
+@media (max-width: 760px) {
+  .compose-hint {
+    flex-basis: 100%;
+    order: 3;
+  }
+  .compose-actions #send {
+    margin-left: auto;
+  }
+  .tool span + span {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+  }
+  .tool {
+    padding: 9px 12px;
+    font-size: 18px;
+  }
+  .media-thumb img,
+  .media-video {
+    width: 220px;
+  }
+  .voice audio {
+    width: 220px;
+  }
+}
+.message.has-media {
+  max-width: min(90%, 290px);
+}
+/* Overlay the textarea so the mic button never moves under a held finger. */
+#composer {
+  position: relative;
+}
+.recording-bar {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  z-index: 4;
+  margin: 0;
+  min-height: 52px;
 }

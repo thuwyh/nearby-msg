@@ -36,7 +36,8 @@ export class Store {
     if (path !== ":memory:") mkdirSync(dirname(path), { recursive: true });
     this.db = new DatabaseSync(path);
     this.db.exec(`PRAGMA journal_mode=WAL;
-      CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind,id));`);
+      CREATE TABLE IF NOT EXISTS records (kind TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(kind,id));
+      CREATE TABLE IF NOT EXISTS blobs (id TEXT PRIMARY KEY, data BLOB NOT NULL);`);
     if (!this.get("meta", "initialized")) this.reset();
   }
   get<T>(kind: string, id: string): T | undefined {
@@ -57,6 +58,13 @@ export class Store {
         "INSERT INTO records VALUES(?,?,?) ON CONFLICT(kind,id) DO UPDATE SET data=excluded.data",
       )
       .run(kind, id, JSON.stringify(value));
+  }
+  putBlob(id: string, data: Uint8Array): void {
+    this.db.prepare("INSERT OR REPLACE INTO blobs VALUES(?,?)").run(id, data);
+  }
+  getBlob(id: string): Uint8Array | undefined {
+    const row = this.db.prepare("SELECT data FROM blobs WHERE id=?").get(id);
+    return row ? (row.data as Uint8Array) : undefined;
   }
   transaction<T>(fn: () => T): T {
     this.db.exec("BEGIN IMMEDIATE");
@@ -80,6 +88,7 @@ export class Store {
   reset(): void {
     this.transaction(() => {
       this.db.exec("DELETE FROM records");
+      this.db.exec("DELETE FROM blobs");
       this.put("meta", "initialized", true);
       this.put<Conversation>("conversation", "support-thread", {
         id: "support-thread",

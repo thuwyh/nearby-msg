@@ -45,6 +45,59 @@ const server = createServer(async (req, res) => {
         ? req.headers["x-actor-id"]
         : "";
     chat.person(actor);
+    const upload = url.pathname.match(
+      /^\/api\/conversations\/([^/]+)\/attachments$/,
+    );
+    if (upload && req.method === "POST") {
+      const plan = chat.planUpload(
+        actor,
+        upload[1],
+        req.headers["content-type"],
+      );
+      const chunks: Buffer[] = [];
+      let size = 0;
+      // Keep reading past the limit (discarding) so the client receives a clean 413.
+      for await (const chunk of req as AsyncIterable<Buffer>) {
+        size += chunk.length;
+        if (size <= plan.limit) chunks.push(chunk);
+      }
+      if (size > plan.limit)
+        throw new HttpError(
+          413,
+          `This ${plan.kind} is too large. The limit is ${plan.limit / 1024 / 1024} MB.`,
+        );
+      let name: string | undefined;
+      try {
+        const header = req.headers["x-file-name"];
+        name =
+          typeof header === "string" ? decodeURIComponent(header) : undefined;
+      } catch {}
+      const attachment = chat.saveUpload(
+        actor,
+        upload[1],
+        plan,
+        Buffer.concat(chunks),
+        {
+          name,
+          durationMs: req.headers["x-duration-ms"],
+        },
+      );
+      reply(201, { attachment });
+      return;
+    }
+    const download = url.pathname.match(/^\/api\/attachments\/([^/]+)$/);
+    if (download && req.method === "GET") {
+      const { attachment, data } = chat.attachment(actor, download[1]);
+      res.writeHead(200, {
+        "Content-Type": attachment.mime,
+        "Content-Length": data.byteLength,
+        "Cache-Control": "private, max-age=31536000, immutable",
+        "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox",
+      });
+      res.end(data);
+      return;
+    }
     let body: any = {};
     if (["POST", "PUT", "PATCH", "DELETE"].includes(req.method ?? "")) {
       let raw = "";
@@ -111,8 +164,9 @@ const server = createServer(async (req, res) => {
     });
   }
 });
-server.listen(Number(process.env.PORT ?? 4310), "127.0.0.1", () =>
-  console.log("Nearby Chat · http://127.0.0.1:" + (process.env.PORT ?? 4310)),
+const host = process.env.HOST ?? "127.0.0.1";
+server.listen(Number(process.env.PORT ?? 4310), host, () =>
+  console.log(`Nearby Chat · http://${host}:${process.env.PORT ?? 4310}`),
 );
 function stop() {
   server.close(() => {
